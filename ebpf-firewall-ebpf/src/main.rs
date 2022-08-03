@@ -9,7 +9,6 @@ use aya_bpf::{
     maps::PerfEventArray,
     programs::SkBuffContext,
 };
-use aya_log_ebpf::info;
 
 mod bindings;
 use bindings::{ethhdr, iphdr};
@@ -37,7 +36,6 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
         action: TC_ACT_OK,
     };
     EVENTS.output(&ctx, &log_entry, 0);
-    info!(&ctx, "received a packet");
     Ok(TC_ACT_OK)
 }
 
