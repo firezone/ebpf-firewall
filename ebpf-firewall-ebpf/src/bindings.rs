@@ -87,12 +87,205 @@ pub type __be16 = __u16;
 pub type __be32 = __u32;
 #[repr(C)]
 #[derive(Copy, Clone)]
+pub struct in6_addr {
+    pub in6_u: in6_addr__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union in6_addr__bindgen_ty_1 {
+    pub u6_addr8: [__u8; 16usize],
+    pub u6_addr16: [__be16; 8usize],
+    pub u6_addr32: [__be32; 4usize],
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ethhdr {
     pub h_dest: [::aya_bpf::cty::c_uchar; 6usize],
     pub h_source: [::aya_bpf::cty::c_uchar; 6usize],
     pub h_proto: __be16,
 }
 pub type __sum16 = __u16;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct tcphdr {
+    pub source: __be16,
+    pub dest: __be16,
+    pub seq: __be32,
+    pub ack_seq: __be32,
+    pub _bitfield_align_1: [u8; 0],
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 2usize]>,
+    pub window: __be16,
+    pub check: __sum16,
+    pub urg_ptr: __be16,
+}
+impl tcphdr {
+    #[inline]
+    pub fn res1(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 4u8) as u16) }
+    }
+    #[inline]
+    pub fn set_res1(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(0usize, 4u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn doff(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(4usize, 4u8) as u16) }
+    }
+    #[inline]
+    pub fn set_doff(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(4usize, 4u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn fin(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(8usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_fin(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(8usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn syn(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(9usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_syn(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(9usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn rst(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(10usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_rst(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(10usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn psh(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(11usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_psh(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(11usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn ack(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(12usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_ack(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(12usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn urg(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(13usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_urg(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(13usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn ece(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(14usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_ece(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(14usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn cwr(&self) -> __u16 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(15usize, 1u8) as u16) }
+    }
+    #[inline]
+    pub fn set_cwr(&mut self, val: __u16) {
+        unsafe {
+            let val: u16 = ::core::mem::transmute(val);
+            self._bitfield_1.set(15usize, 1u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn new_bitfield_1(
+        res1: __u16,
+        doff: __u16,
+        fin: __u16,
+        syn: __u16,
+        rst: __u16,
+        psh: __u16,
+        ack: __u16,
+        urg: __u16,
+        ece: __u16,
+        cwr: __u16,
+    ) -> __BindgenBitfieldUnit<[u8; 2usize]> {
+        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 2usize]> = Default::default();
+        __bindgen_bitfield_unit.set(0usize, 4u8, {
+            let res1: u16 = unsafe { ::core::mem::transmute(res1) };
+            res1 as u64
+        });
+        __bindgen_bitfield_unit.set(4usize, 4u8, {
+            let doff: u16 = unsafe { ::core::mem::transmute(doff) };
+            doff as u64
+        });
+        __bindgen_bitfield_unit.set(8usize, 1u8, {
+            let fin: u16 = unsafe { ::core::mem::transmute(fin) };
+            fin as u64
+        });
+        __bindgen_bitfield_unit.set(9usize, 1u8, {
+            let syn: u16 = unsafe { ::core::mem::transmute(syn) };
+            syn as u64
+        });
+        __bindgen_bitfield_unit.set(10usize, 1u8, {
+            let rst: u16 = unsafe { ::core::mem::transmute(rst) };
+            rst as u64
+        });
+        __bindgen_bitfield_unit.set(11usize, 1u8, {
+            let psh: u16 = unsafe { ::core::mem::transmute(psh) };
+            psh as u64
+        });
+        __bindgen_bitfield_unit.set(12usize, 1u8, {
+            let ack: u16 = unsafe { ::core::mem::transmute(ack) };
+            ack as u64
+        });
+        __bindgen_bitfield_unit.set(13usize, 1u8, {
+            let urg: u16 = unsafe { ::core::mem::transmute(urg) };
+            urg as u64
+        });
+        __bindgen_bitfield_unit.set(14usize, 1u8, {
+            let ece: u16 = unsafe { ::core::mem::transmute(ece) };
+            ece as u64
+        });
+        __bindgen_bitfield_unit.set(15usize, 1u8, {
+            let cwr: u16 = unsafe { ::core::mem::transmute(cwr) };
+            cwr as u64
+        });
+        __bindgen_bitfield_unit
+    }
+}
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct iphdr {
@@ -144,4 +337,61 @@ impl iphdr {
         });
         __bindgen_bitfield_unit
     }
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ipv6hdr {
+    pub _bitfield_align_1: [u8; 0],
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
+    pub flow_lbl: [__u8; 3usize],
+    pub payload_len: __be16,
+    pub nexthdr: __u8,
+    pub hop_limit: __u8,
+    pub saddr: in6_addr,
+    pub daddr: in6_addr,
+}
+impl ipv6hdr {
+    #[inline]
+    pub fn priority(&self) -> __u8 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 4u8) as u8) }
+    }
+    #[inline]
+    pub fn set_priority(&mut self, val: __u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            self._bitfield_1.set(0usize, 4u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn version(&self) -> __u8 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(4usize, 4u8) as u8) }
+    }
+    #[inline]
+    pub fn set_version(&mut self, val: __u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            self._bitfield_1.set(4usize, 4u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn new_bitfield_1(priority: __u8, version: __u8) -> __BindgenBitfieldUnit<[u8; 1usize]> {
+        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
+        __bindgen_bitfield_unit.set(0usize, 4u8, {
+            let priority: u8 = unsafe { ::core::mem::transmute(priority) };
+            priority as u64
+        });
+        __bindgen_bitfield_unit.set(4usize, 4u8, {
+            let version: u8 = unsafe { ::core::mem::transmute(version) };
+            version as u64
+        });
+        __bindgen_bitfield_unit
+    }
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct udphdr {
+    pub source: __be16,
+    pub dest: __be16,
+    pub len: __be16,
+    pub check: __sum16,
 }

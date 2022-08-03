@@ -1,0 +1,61 @@
+name: build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          # TODO: Not sure why rust-src is needed
+          components: clippy, rust-src
+      - name: Cache cargo modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-18.04-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-18.04-cargo
+      - name: Install bpf-linker
+        run: cargo install bpf-linker
+      - name: Build Ebpf
+        run: cargo xtask build-ebpf
+      - name: Build
+        run: cargo build --verbose --example ci-run
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Run clippy
+        run: cargo clippy -- -D clippy::all
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ci-run
+          path: target/debug/examples/ci-run
+
+  # Keeping these separate for ease of testing in the future
+  test-run:
+    runs-on: ubuntu-18.04
+    needs: build
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ci-run
+      - name: Restore artifact permissions
+        run: sudo chmod +x ./ci-run
+      - name: Run eBPF code
+        run: sudo ./ci-run

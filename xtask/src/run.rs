@@ -19,6 +19,9 @@ pub struct Options {
     /// Arguments to pass to your application
     #[clap(name = "args", last = true)]
     pub run_args: Vec<String>,
+    /// Features to pass to ebpf
+    #[clap(long)]
+    pub features: Option<String>,
 }
 
 /// Build the project
@@ -27,6 +30,8 @@ fn build(opts: &Options) -> Result<(), anyhow::Error> {
     if opts.release {
         args.push("--release")
     }
+    args.push("--example");
+    args.push("logger-firewall");
     let status = Command::new("cargo")
         .args(&args)
         .status()
@@ -41,13 +46,14 @@ pub fn run(opts: Options) -> Result<(), anyhow::Error> {
     build_ebpf(BuildOptions {
         target: opts.bpf_target,
         release: opts.release,
+        features: opts.features.clone(),
     })
     .context("Error while building eBPF program")?;
     build(&opts).context("Error while building userspace application")?;
 
     // profile we are building (release or debug)
     let profile = if opts.release { "release" } else { "debug" };
-    let bin_path = format!("target/{}/ebpf-firewall", profile);
+    let bin_path = format!("target/{}/examples/logger-firewall", profile);
 
     // arguments to pass to the application
     let mut run_args: Vec<_> = opts.run_args.iter().map(String::as_str).collect();
@@ -58,7 +64,7 @@ pub fn run(opts: Options) -> Result<(), anyhow::Error> {
     args.append(&mut run_args);
 
     // spawn the command
-    let err = Command::new(args.get(0).expect("No first argument"))
+    let err = Command::new(args.first().expect("No first argument"))
         .args(args.iter().skip(1))
         .exec();
 
