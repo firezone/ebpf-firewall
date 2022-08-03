@@ -6,7 +6,7 @@ use aya_bpf::{
     bindings::TC_ACT_OK,
     bindings::TC_ACT_SHOT,
     macros::{classifier, map},
-    maps::PerfEventArray,
+    maps::{HashMap, PerfEventArray},
     programs::SkBuffContext,
 };
 
@@ -14,6 +14,7 @@ use aya_log_ebpf::info;
 
 mod bindings;
 use bindings::{ethhdr, iphdr};
+
 use core::mem;
 use ebpf_firewall_common::PacketLog;
 use memoffset::offset_of;
@@ -21,6 +22,9 @@ use memoffset::offset_of;
 #[map(name = "EVENTS")] //
 static mut EVENTS: PerfEventArray<PacketLog> =
     PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
+
+#[map(name = "BLOCKLIST")]
+static mut BLOCKLIST: HashMap<u32, i32> = HashMap::<u32, i32>::with_max_entries(1024, 0);
 
 #[classifier(name = "ebpf_firewall")]
 pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
@@ -33,13 +37,24 @@ pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
 unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     let source = u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?);
 
+    let action = if block_ip(source) {
+        TC_ACT_SHOT
+    } else {
+        TC_ACT_OK
+    };
+
     let log_entry = PacketLog {
         ipv4_address: source,
-        action: TC_ACT_OK,
+        action,
     };
+
     EVENTS.output(&ctx, &log_entry, 0);
     info!(&ctx, "received a packet");
-    Ok(TC_ACT_OK)
+    Ok(action)
+}
+
+fn block_ip(address: u32) -> bool {
+    unsafe { BLOCKLIST.get(&address).is_some() }
 }
 
 #[panic_handler]

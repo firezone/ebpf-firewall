@@ -1,4 +1,5 @@
 use aya::maps::perf::AsyncPerfEventArray;
+use aya::maps::HashMap;
 use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Bpf};
@@ -8,7 +9,7 @@ use clap::Parser;
 use ebpf_firewall_common::PacketLog;
 use log::info;
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use std::net;
+use std::net::{self, Ipv4Addr};
 use tokio::signal;
 
 #[derive(Debug, Parser)]
@@ -50,6 +51,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let program: &mut SchedClassifier = bpf.program_mut("ebpf_firewall").unwrap().try_into()?;
     program.load()?;
     program.attach(&opt.iface, TcAttachType::Ingress)?;
+
+    let mut blocklist: HashMap<_, u32, i32> = HashMap::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    let block_addr: u32 = Ipv4Addr::new(1, 1, 1, 1).try_into()?;
+    blocklist.insert(block_addr, 0, 0)?;
 
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
