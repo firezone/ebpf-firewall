@@ -1,6 +1,6 @@
 # ebpf-firewall
 
-Right now this just logs incoming packets IPs
+Right now this logs incoming packet's IP and blocks packets in `BlockList` (Currently `1.1.1.1`).
 
 ## Prerequisites
 
