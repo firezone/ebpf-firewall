@@ -3,10 +3,14 @@
 #![allow(nonstandard_style, dead_code)]
 
 use aya_bpf::{
+    bindings::BPF_F_NO_PREALLOC,
     bindings::TC_ACT_OK,
     bindings::TC_ACT_SHOT,
     macros::{classifier, map},
-    maps::{HashMap, PerfEventArray},
+    maps::{
+        lpm_trie::{Key, LpmTrie},
+        PerfEventArray,
+    },
     programs::SkBuffContext,
 };
 
@@ -24,7 +28,8 @@ static mut EVENTS: PerfEventArray<PacketLog> =
     PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
 
 #[map(name = "BLOCKLIST")]
-static mut BLOCKLIST: HashMap<u32, i32> = HashMap::<u32, i32>::with_max_entries(1024, 0);
+static mut BLOCKLIST: LpmTrie<[u8; 4], i32> =
+    LpmTrie::<[u8; 4], i32>::with_max_entries(1024, BPF_F_NO_PREALLOC);
 
 #[classifier(name = "ebpf_firewall")]
 pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
@@ -35,7 +40,8 @@ pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
 }
 
 unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
-    let source = u32::from_be(ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?);
+    let source = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?;
+    //info!(&ctx, "packet recieved");
 
     let action = if block_ip(source) {
         TC_ACT_SHOT
@@ -49,12 +55,12 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     };
 
     EVENTS.output(&ctx, &log_entry, 0);
-    info!(&ctx, "received a packet");
+    //info!(&ctx, "Packet recieved!");
     Ok(action)
 }
 
-fn block_ip(address: u32) -> bool {
-    unsafe { BLOCKLIST.get(&address).is_some() }
+fn block_ip(address: [u8; 4]) -> bool {
+    unsafe { BLOCKLIST.get(&Key::new(32, address)).is_some() }
 }
 
 #[panic_handler]

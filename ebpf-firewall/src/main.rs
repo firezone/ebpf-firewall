@@ -1,5 +1,5 @@
+use aya::maps::lpm_trie::{Key, LpmTrie};
 use aya::maps::perf::AsyncPerfEventArray;
-use aya::maps::HashMap;
 use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Bpf};
@@ -52,9 +52,10 @@ async fn main() -> Result<(), anyhow::Error> {
     program.load()?;
     program.attach(&opt.iface, TcAttachType::Ingress)?;
 
-    let mut blocklist: HashMap<_, u32, i32> = HashMap::try_from(bpf.map_mut("BLOCKLIST")?)?;
-    let block_addr: u32 = Ipv4Addr::new(1, 1, 1, 1).try_into()?;
-    blocklist.insert(block_addr, 0, 0)?;
+    // O_o what? insert doesn't require mut for some reason in LpmTrie.
+    let blocklist: LpmTrie<_, [u8; 4], i32> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    let block_addr: [u8; 4] = [1, 1, 1, 0];
+    blocklist.insert(&Key::new(24, block_addr), 0, 0)?;
 
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
@@ -71,9 +72,9 @@ async fn main() -> Result<(), anyhow::Error> {
                     let buf = &mut buffers[i];
                     let ptr = buf.as_ptr() as *const PacketLog;
                     let data = unsafe { ptr.read_unaligned() };
-                    let src_addr = net::Ipv4Addr::from(data.ipv4_address);
+                    let src_addr = data.ipv4_address;
                     let action = data.action;
-                    println!("LOG: SRC {src_addr}, action {action}")
+                    println!("LOG: SRC {src_addr:?}, action {action}")
                 }
             }
         });
