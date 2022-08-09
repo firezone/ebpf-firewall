@@ -1,5 +1,6 @@
 use aya::maps::lpm_trie::{Key, LpmTrie};
 use aya::maps::perf::AsyncPerfEventArray;
+use aya::maps::HashMap;
 use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Bpf};
@@ -53,9 +54,13 @@ async fn main() -> Result<(), anyhow::Error> {
     program.attach(&opt.iface, TcAttachType::Ingress)?;
 
     // O_o what? insert doesn't require mut for some reason in LpmTrie.
-    let blocklist: LpmTrie<_, [u8; 4], i32> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
-    let block_addr: [u8; 4] = [1, 1, 1, 0];
-    blocklist.insert(&Key::new(24, block_addr), 0, 0)?;
+    let mut classifier: HashMap<_, [u8; 4], u32> = HashMap::try_from(bpf.map_mut("CLASSIFIER")?)?;
+    let blocklist: LpmTrie<_, [u8; 8], i32> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    let block_addr: [u8; 8] = [0, 0, 0, 0, 1, 1, 1, 0];
+    classifier.insert([142, 250, 79, 142], 1, 0)?;
+    blocklist.insert(&Key::new(56, block_addr), 0, 0)?;
+    let block_addr: [u8; 8] = [0, 0, 0, 1, 192, 168, 0, 197];
+    blocklist.insert(&Key::new(64, block_addr), 0, 0)?;
 
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
@@ -72,9 +77,10 @@ async fn main() -> Result<(), anyhow::Error> {
                     let buf = &mut buffers[i];
                     let ptr = buf.as_ptr() as *const PacketLog;
                     let data = unsafe { ptr.read_unaligned() };
-                    let src_addr = data.ipv4_address;
+                    let src_addr = data.source;
+                    let dst_addr = data.dest;
                     let action = data.action;
-                    println!("LOG: SRC {src_addr:?}, action {action}")
+                    println!("LOG: SRC {src_addr:?}, DST {dst_addr:?}, action {action}")
                 }
             }
         });
