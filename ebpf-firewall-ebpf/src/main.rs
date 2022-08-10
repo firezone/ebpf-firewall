@@ -47,8 +47,15 @@ pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
 }
 
 unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
-    let source = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?;
-    let dest = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?;
+    //let source = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?;
+    //let dest = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?;
+    // For wireguard there is no ETH_HDR_LEN
+    // Options:
+    // * compile flag
+    // * Runtime config
+    // (Compile flag is better I think, as a "wireguard" feature)
+    let source = ctx.load(offset_of!(iphdr, saddr))?;
+    let dest = ctx.load(offset_of!(iphdr, daddr))?;
 
     let class = source_class(source);
     let action = if block_ip(class, dest) {

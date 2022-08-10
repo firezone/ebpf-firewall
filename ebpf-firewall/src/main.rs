@@ -56,10 +56,8 @@ async fn main() -> Result<(), anyhow::Error> {
     // O_o what? insert doesn't require mut for some reason in LpmTrie.
     let mut classifier: HashMap<_, [u8; 4], u32> = HashMap::try_from(bpf.map_mut("CLASSIFIER")?)?;
     let blocklist: LpmTrie<_, [u8; 8], i32> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
-    let block_addr: [u8; 8] = [0, 0, 0, 0, 1, 1, 1, 0];
-    classifier.insert([142, 250, 79, 142], 1, 0)?;
-    blocklist.insert(&Key::new(56, block_addr), 0, 0)?;
-    let block_addr: [u8; 8] = [0, 0, 0, 1, 192, 168, 0, 197];
+    let block_addr: [u8; 8] = [0, 0, 0, 1, 10, 13, 13, 3];
+    classifier.insert([10, 13, 13, 2], 1, 0)?;
     blocklist.insert(&Key::new(64, block_addr), 0, 0)?;
 
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
@@ -77,8 +75,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     let buf = &mut buffers[i];
                     let ptr = buf.as_ptr() as *const PacketLog;
                     let data = unsafe { ptr.read_unaligned() };
-                    let src_addr = data.source;
-                    let dst_addr = data.dest;
+                    let src_addr = Ipv4Addr::from(data.source);
+                    let dst_addr = Ipv4Addr::from(data.dest);
                     let action = data.action;
                     println!("LOG: SRC {src_addr:?}, DST {dst_addr:?}, action {action}")
                 }

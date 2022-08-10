@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  wireguard_server:
+    image: lscr.io/linuxserver/wireguard:latest
+    volumes:
+      - ../target/debug/ebpf-firewall:/ebpf-firewall:ro
+      - ./peers/:/config/:rw
+    environment:
+      - PEERS=3
+      - ALLOWEDIPS=0.0.0.0/0
+      - SERVERURL=172.8.0.2
+      - LOG_CONFS=false
+      - PUID=1000
+      - PGID=1000
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    # Not sure what capabilities are required to create eBPF maps
+    privileged: true
+    networks:
+      internal:
+        ipv4_address: 172.8.0.2
+    command: /ebpf-firewall --iface "wg0"
+
+  peer1:
+    image: lscr.io/linuxserver/wireguard:latest
+    volumes:
+      - ./peers/peer1/peer1.conf:/config/wg0.conf:ro
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+    networks:
+      internal:
+        ipv4_address: 172.8.0.3
+    command: ping -O 10.13.13.3
+
+  peer2:
+    image: lscr.io/linuxserver/wireguard:latest
+    volumes:
+      - ./peers/peer2/peer2.conf:/config/wg0.conf:ro
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+    networks:
+      internal:
+        ipv4_address: 172.8.0.4
+    command: ping -O 10.13.13.4
+
+  peer3:
+    image: lscr.io/linuxserver/wireguard:latest
+    volumes:
+      - ./peers/peer3/peer3.conf:/config/wg0.conf:ro
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+    networks:
+      internal:
+        ipv4_address: 172.8.0.5
+    command: ping -O 10.13.13.3
+
+networks:
+  internal:
+    ipam:
+      config:
+        - subnet: 172.8.0.0/16
