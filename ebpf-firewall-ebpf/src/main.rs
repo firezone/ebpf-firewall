@@ -22,8 +22,11 @@ mod bindings;
 use bindings::{ethhdr, iphdr};
 
 use core::mem;
-use ebpf_firewall_common::PacketLog;
+//use ebpf_firewall_common::{ActionStore, PacketLog};
+use ebpf_firewall_common::{ActionStore, PacketLog};
 use memoffset::offset_of;
+
+use crate::bindings::{tcphdr, udphdr};
 
 #[map(name = "EVENTS")] //
 static mut EVENTS: PerfEventArray<PacketLog> =
@@ -35,8 +38,8 @@ static mut SOURCE_CLASSIFIER: HashMap<[u8; 4], u32> =
     HashMap::<[u8; 4], u32>::with_max_entries(1024, 0);
 
 #[map(name = "BLOCKLIST")]
-static mut BLOCKLIST: LpmTrie<[u8; 8], i32> =
-    LpmTrie::<[u8; 8], i32>::with_max_entries(1024, BPF_F_NO_PREALLOC);
+static mut BLOCKLIST: LpmTrie<[u8; 8], ActionStore> =
+    LpmTrie::<[u8; 8], ActionStore>::with_max_entries(1024, BPF_F_NO_PREALLOC);
 
 #[classifier(name = "ebpf_firewall")]
 pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
@@ -49,6 +52,7 @@ pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
 unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     //let source = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?;
     //let dest = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?;
+    //let proto = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, protocol))?;
     // For wireguard there is no ETH_HDR_LEN
     // Options:
     // * compile flag
@@ -56,18 +60,23 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     // (Compile flag is better I think, as a "wireguard" feature)
     let source = ctx.load(offset_of!(iphdr, saddr))?;
     let dest = ctx.load(offset_of!(iphdr, daddr))?;
+    let proto = ctx.load(offset_of!(iphdr, protocol))?;
+
+    let port = match proto {
+        TCP => u16::from_be(ctx.load(IP_HDR_LEN + offset_of!(tcphdr, dest))?),
+        UDP => u16::from_be(ctx.load(IP_HDR_LEN + offset_of!(udphdr, dest))?),
+        // MORE TODOS!
+        _ => 0,
+    };
 
     let class = source_class(source);
-    let action = if block_ip(class, dest) {
-        TC_ACT_SHOT
-    } else {
-        TC_ACT_OK
-    };
+    let action = get_action(class, dest, port, &ctx);
 
     let log_entry = PacketLog {
         source,
         dest,
         action,
+        port: port as u32,
     };
 
     EVENTS.output(&ctx, &log_entry, 0);
@@ -83,12 +92,28 @@ fn source_class(address: [u8; 4]) -> Option<[u8; 4]> {
     }
 }
 
-fn block_ip(group: Option<[u8; 4]>, address: [u8; 4]) -> bool {
+// Okay yeah, this is ugly, will refacto exactly how this works later
+fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16, ctx: &SkBuffContext) -> i32 {
     // For now let's assume things are correctly initialzed
-    unsafe {
-        BLOCKLIST
-            .get(&Key::new(64, get_key(group, address)))
-            .is_some()
+    let action_store = unsafe { BLOCKLIST.get(&Key::new(64, get_key(group, address))) };
+    if let Some(action_store) = action_store {
+        info!(ctx, "Found action store");
+        if let Some(action) = action_store.lookup(port) {
+            info!(ctx, "found port");
+            if action {
+                info!(ctx, "action true");
+                TC_ACT_OK
+            } else {
+                info!(ctx, "action false");
+                TC_ACT_SHOT
+            }
+        } else {
+            info!(ctx, "not found port");
+            DEFAULT_ACTION
+        }
+    } else {
+        info!(ctx, "not found store");
+        DEFAULT_ACTION
     }
 }
 
@@ -109,3 +134,7 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 const ETH_P_IP: u16 = 0x0800;
 const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
+const IP_HDR_LEN: usize = mem::size_of::<iphdr>();
+const TCP: u8 = 0x06;
+const UDP: u8 = 0x11;
+const DEFAULT_ACTION: i32 = TC_ACT_OK;

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   wireguard_server:
-    image: lscr.io/linuxserver/wireguard:latest
+    image: wireguard-test:latest
     volumes:
       - ../target/debug/ebpf-firewall:/ebpf-firewall:ro
       - ./peers/:/config/:rw
@@ -27,7 +27,7 @@ services:
     command: /ebpf-firewall --iface "wg0"
 
   peer1:
-    image: lscr.io/linuxserver/wireguard:latest
+    image: wireguard-test:latest
     volumes:
       - ./peers/peer1/peer1.conf:/config/wg0.conf:ro
     cap_add:
@@ -42,10 +42,10 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.3
-    command: ping -O 10.13.13.3
+    command: /bin/sh -c "sleep 60 && echo peer1! && echo howdy | nc -n 10.13.13.3 5500"
 
   peer2:
-    image: lscr.io/linuxserver/wireguard:latest
+    image: wireguard-test:latest
     volumes:
       - ./peers/peer2/peer2.conf:/config/wg0.conf:ro
     cap_add:
@@ -60,10 +60,10 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.4
-    command: ping -O 10.13.13.4
+    command: /bin/sh -c "echo peer2! && while true; do echo "hi" | nc -l 10.13.13.3 5500; done"
 
   peer3:
-    image: lscr.io/linuxserver/wireguard:latest
+    image: wireguard-test:latest
     volumes:
       - ./peers/peer3/peer3.conf:/config/wg0.conf:ro
     cap_add:
@@ -78,7 +78,7 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.5
-    command: ping -O 10.13.13.3
+    command: /bin/sh -c "sleep 60 && echo peer3! && echo hellow | nc -n 10.13.13.3 5500"
 
 networks:
   internal:

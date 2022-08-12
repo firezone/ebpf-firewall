@@ -7,7 +7,7 @@ use aya::{include_bytes_aligned, Bpf};
 use aya_log::BpfLogger;
 use bytes::BytesMut;
 use clap::Parser;
-use ebpf_firewall_common::PacketLog;
+use ebpf_firewall_common::{ActionStore, PacketLog, MAX_RULES};
 use log::info;
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
 use std::net::{self, Ipv4Addr};
@@ -55,10 +55,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // O_o what? insert doesn't require mut for some reason in LpmTrie.
     let mut classifier: HashMap<_, [u8; 4], u32> = HashMap::try_from(bpf.map_mut("CLASSIFIER")?)?;
-    let blocklist: LpmTrie<_, [u8; 8], i32> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    //let blocklist: LpmTrie<_, [u8; 8], ActionStore> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    let blocklist: LpmTrie<_, [u8; 8], [u64; MAX_RULES + 1]> =
+        LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
     let block_addr: [u8; 8] = [0, 0, 0, 1, 10, 13, 13, 3];
     classifier.insert([10, 13, 13, 2], 1, 0)?;
-    blocklist.insert(&Key::new(64, block_addr), 0, 0)?;
+    //blocklist.insert(&Key::new(64, block_addr), ActionStore::new(), 0)?;
+    // false means blocks
+    let mut action_store = ActionStore::new();
+    action_store.add(5000, 6000, false).unwrap();
+    blocklist.insert(&Key::new(64, block_addr), action_store.as_array(), 0)?;
 
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
@@ -78,7 +84,10 @@ async fn main() -> Result<(), anyhow::Error> {
                     let src_addr = Ipv4Addr::from(data.source);
                     let dst_addr = Ipv4Addr::from(data.dest);
                     let action = data.action;
-                    println!("LOG: SRC {src_addr:?}, DST {dst_addr:?}, action {action}")
+                    let port = data.port;
+                    println!(
+                        "LOG: SRC {src_addr:?}, DST {dst_addr:?}, PORT: {port} ,action {action}"
+                    )
                 }
             }
         });
