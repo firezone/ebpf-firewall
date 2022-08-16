@@ -24,14 +24,10 @@ pub struct ActionStore {
     /// bit 32 action
     /// rest padding
     rules: [u64; MAX_RULES],
-    /// Keep this to < usize pwretty please
+    /// Keep this to < usize pretty please
     /// But we do need the padding
     rules_len: u64,
 }
-
-// SAFETY: ActionStore is just an u64 array + u64, basically, [u64; MAX_RULES + 1]
-//#[cfg(feature = "user")]
-//unsafe impl aya::Pod for ActionStore {}
 
 fn new_rule(start: u16, end: u16, action: bool) -> u64 {
     ((action as u64) << ACTION_BIT) | ((end as u64) << END_FIRST_BIT) | (start as u64)

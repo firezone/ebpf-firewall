@@ -1,4 +1,6 @@
-use aya::maps::lpm_trie::{Key, LpmTrie};
+mod rule_tracker;
+
+use aya::maps::lpm_trie::LpmTrie;
 use aya::maps::perf::AsyncPerfEventArray;
 use aya::maps::HashMap;
 use aya::programs::{tc, SchedClassifier, TcAttachType};
@@ -9,9 +11,12 @@ use bytes::BytesMut;
 use clap::Parser;
 use ebpf_firewall_common::{ActionStore, PacketLog, MAX_RULES};
 use log::info;
+use rule_tracker::RuleTracker;
 use simplelog::{ColorChoice, ConfigBuilder, LevelFilter, TermLogger, TerminalMode};
-use std::net::{self, Ipv4Addr};
+use std::net::Ipv4Addr;
 use tokio::signal;
+
+use crate::rule_tracker::CIDR;
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -53,18 +58,33 @@ async fn main() -> Result<(), anyhow::Error> {
     program.load()?;
     program.attach(&opt.iface, TcAttachType::Ingress)?;
 
-    // O_o what? insert doesn't require mut for some reason in LpmTrie.
     let mut classifier: HashMap<_, [u8; 4], u32> = HashMap::try_from(bpf.map_mut("CLASSIFIER")?)?;
-    //let blocklist: LpmTrie<_, [u8; 8], ActionStore> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    // O_o what? insert doesn't require mut for some reason in LpmTrie.
     let blocklist: LpmTrie<_, [u8; 8], [u64; MAX_RULES + 1]> =
         LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
-    let block_addr: [u8; 8] = [0, 0, 0, 1, 10, 13, 13, 3];
+    let mut rule_tracker = RuleTracker::new(blocklist);
     classifier.insert([10, 13, 13, 2], 1, 0)?;
-    //blocklist.insert(&Key::new(64, block_addr), ActionStore::new(), 0)?;
-    // false means blocks
     let mut action_store = ActionStore::new();
     action_store.add(5000, 6000, false).unwrap();
-    blocklist.insert(&Key::new(64, block_addr), action_store.as_array(), 0)?;
+    rule_tracker
+        .add_rule(
+            1,
+            CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+            300,
+            400,
+            false,
+        )
+        .unwrap();
+
+    rule_tracker
+        .add_rule(
+            1,
+            CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+            5000,
+            6000,
+            false,
+        )
+        .unwrap();
 
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
