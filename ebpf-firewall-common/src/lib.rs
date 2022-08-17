@@ -84,22 +84,14 @@ impl ActionStore {
             rules_len: 0,
         }
     }
-
-    // I wanted to use aya::Pod to say that this struct is basically an array, however
-    // That lead to some weird! behavior, need more investigation as to if and how to make
-    // this more ergonomic
-    pub fn as_array(self) -> [u64; MAX_RULES + 1] {
-        let mut res = [0; MAX_RULES + 1];
-        let (rules, rules_len) = res.split_at_mut(MAX_RULES);
-        rules.copy_from_slice(&self.rules[..]);
-        rules_len.copy_from_slice(&[self.rules_len]);
-        res
-    }
 }
 
 fn contains(rule: u64, val: u16) -> bool {
     start(rule) <= val && val <= end(rule)
 }
+
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for ActionStore {}
 
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for PacketLog {}

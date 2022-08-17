@@ -41,11 +41,11 @@ fn to_action_store(port_ranges: Vec<PortRange>) -> ActionStore {
 
 pub(crate) struct RuleTracker<T: Deref<Target = Map>> {
     rule_map: HashMap<(u32, CIDR), Vec<PortRange>>,
-    ebpf_store: LpmTrie<T, [u8; 8], [u64; MAX_RULES + 1]>,
+    ebpf_store: LpmTrie<T, [u8; 8], ActionStore>,
 }
 
 impl<T: Deref<Target = Map>> RuleTracker<T> {
-    pub(crate) fn new(ebpf_store: LpmTrie<T, [u8; 8], [u64; MAX_RULES + 1]>) -> Self {
+    pub(crate) fn new(ebpf_store: LpmTrie<T, [u8; 8], ActionStore>) -> Self {
         Self {
             rule_map: HashMap::new(),
             ebpf_store,
@@ -73,11 +73,8 @@ impl<T: Deref<Target = Map>> RuleTracker<T> {
             .and_modify(|e| e.push(port_range.clone()))
             .or_insert(vec![port_range.clone()]);
 
-        self.ebpf_store.insert(
-            &cidr.get_key(id),
-            to_action_store(port_ranges.clone()).as_array(),
-            0,
-        )?;
+        self.ebpf_store
+            .insert(&cidr.get_key(id), to_action_store(port_ranges.clone()), 0)?;
 
         self.propagate(port_range, id)
     }
@@ -86,11 +83,8 @@ impl<T: Deref<Target = Map>> RuleTracker<T> {
         for ((k_id, k_ip), v) in self.rule_map.iter_mut() {
             if *k_id == id && port_range.origin.contains(k_ip) {
                 v.push(port_range);
-                self.ebpf_store.insert(
-                    &k_ip.get_key(*k_id),
-                    to_action_store(v.clone()).as_array(),
-                    0,
-                )?;
+                self.ebpf_store
+                    .insert(&k_ip.get_key(*k_id), to_action_store(v.clone()), 0)?;
             }
         }
         Ok(())

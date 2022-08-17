@@ -60,26 +60,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut classifier: HashMap<_, [u8; 4], u32> = HashMap::try_from(bpf.map_mut("CLASSIFIER")?)?;
     // O_o what? insert doesn't require mut for some reason in LpmTrie.
-    let blocklist: LpmTrie<_, [u8; 8], [u64; MAX_RULES + 1]> =
-        LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
+    let blocklist: LpmTrie<_, [u8; 8], ActionStore> = LpmTrie::try_from(bpf.map_mut("BLOCKLIST")?)?;
     let mut rule_tracker = RuleTracker::new(blocklist);
     classifier.insert([10, 13, 13, 2], 1, 0)?;
     let mut action_store = ActionStore::new();
     action_store.add(5000, 6000, false).unwrap();
-    for i in 1..254u8 {
-        for j in 1..254u8 {
-            println!("Cordinate {i} {j}");
-            rule_tracker
-                .add_rule(
-                    1,
-                    CIDR::new(Ipv4Addr::new(10, 13, j, i), 32),
-                    300,
-                    400,
-                    false,
-                )
-                .unwrap();
-        }
-    }
 
     rule_tracker
         .add_rule(
