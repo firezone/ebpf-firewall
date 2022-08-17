@@ -38,6 +38,9 @@ pub struct Options {
     /// Build the release target
     #[clap(long)]
     pub release: bool,
+    /// Forwards features
+    #[clap(long)]
+    pub features: Option<String>,
 }
 
 pub fn build_ebpf(opts: Options) -> Result<(), anyhow::Error> {
@@ -52,7 +55,11 @@ pub fn build_ebpf(opts: Options) -> Result<(), anyhow::Error> {
         "build-std=core",
     ];
     if opts.release {
-        args.push("--release")
+        args.push("--release");
+    }
+    if let Some(ref features) = opts.features {
+        args.push("--features");
+        args.push(features);
     }
     let status = Command::new("cargo")
         .current_dir(&dir)

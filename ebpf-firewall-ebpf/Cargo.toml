@@ -9,6 +9,9 @@ aya-log-ebpf = { git = "https://github.com/aya-rs/aya-log", branch = "main" }
 ebpf-firewall-common = { path = "../ebpf-firewall-common" }
 memoffset = "0.6"
 
+[features]
+wireguard = []
+
 [[bin]]
 name = "ebpf-firewall"
 path = "src/main.rs"

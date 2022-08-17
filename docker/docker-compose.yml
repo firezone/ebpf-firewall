@@ -24,7 +24,7 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.2
-    command: /ebpf-firewall --iface "wg0"
+    command: /ebpf-firewall --iface wg0
 
   peer1:
     image: wireguard-test:latest

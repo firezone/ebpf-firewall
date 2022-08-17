@@ -66,15 +66,20 @@ async fn main() -> Result<(), anyhow::Error> {
     classifier.insert([10, 13, 13, 2], 1, 0)?;
     let mut action_store = ActionStore::new();
     action_store.add(5000, 6000, false).unwrap();
-    rule_tracker
-        .add_rule(
-            1,
-            CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
-            300,
-            400,
-            false,
-        )
-        .unwrap();
+    for i in 1..254u8 {
+        for j in 1..254u8 {
+            println!("Cordinate {i} {j}");
+            rule_tracker
+                .add_rule(
+                    1,
+                    CIDR::new(Ipv4Addr::new(10, 13, j, i), 32),
+                    300,
+                    400,
+                    false,
+                )
+                .unwrap();
+        }
+    }
 
     rule_tracker
         .add_rule(

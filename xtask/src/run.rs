@@ -19,6 +19,9 @@ pub struct Options {
     /// Arguments to pass to your application
     #[clap(name = "args", last = true)]
     pub run_args: Vec<String>,
+    /// Features to pass to ebpf
+    #[clap(long)]
+    pub features: Option<String>,
 }
 
 /// Build the project
@@ -41,6 +44,7 @@ pub fn run(opts: Options) -> Result<(), anyhow::Error> {
     build_ebpf(BuildOptions {
         target: opts.bpf_target,
         release: opts.release,
+        features: opts.features.clone(),
     })
     .context("Error while building eBPF program")?;
     build(&opts).context("Error while building userspace application")?;

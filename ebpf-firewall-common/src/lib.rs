@@ -10,7 +10,7 @@ pub struct PacketLog {
     pub port: u32,
 }
 
-pub const MAX_RULES: usize = 16;
+pub const MAX_RULES: usize = 2048;
 const START_MASK: u64 = 0x00000000_0000_FFFF;
 const END_MASK: u64 = 0x00000000_FFFF_0000;
 const END_FIRST_BIT: u64 = 16;
