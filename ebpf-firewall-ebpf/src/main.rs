@@ -14,12 +14,11 @@ use aya_bpf::{
     programs::SkBuffContext,
 };
 
-// We need to include this otherwise ebpf complies that
-// `AYA_LOG` doesn't exists. Need to debug this.
-use aya_log_ebpf::info;
+// Just using it to initialize log statics
+use aya_log_ebpf as _;
 
 mod bindings;
-use bindings::{ethhdr, iphdr};
+use bindings::iphdr;
 
 use core::mem;
 //use ebpf_firewall_common::{ActionStore, PacketLog};
@@ -125,7 +124,7 @@ const UDP: u8 = 0x11;
 const DEFAULT_ACTION: i32 = TC_ACT_OK;
 
 #[cfg(not(feature = "wireguard"))]
-const ETH_HDR_LEN: usize = mem::size_of::<ethhdr>();
+const ETH_HDR_LEN: usize = mem::size_of::<bindings::ethhdr>();
 
 #[cfg(feature = "wireguard")]
 const ETH_HDR_LEN: usize = 0;

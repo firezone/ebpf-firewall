@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "user"), no_std)]
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -8,6 +8,22 @@ pub struct PacketLog {
     pub action: i32,
     // 32 instead of 16 for padding
     pub port: u32,
+}
+
+#[cfg(feature = "user")]
+impl std::fmt::Display for PacketLog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        use std::net::Ipv4Addr;
+
+        write!(
+            f,
+            "ipv4: source {} destination {} action {} port {}",
+            Ipv4Addr::from(self.source),
+            Ipv4Addr::from(self.dest),
+            self.action,
+            self.port
+        )
+    }
 }
 
 pub const MAX_RULES: usize = 2048;

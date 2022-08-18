@@ -13,6 +13,7 @@ services:
       - LOG_CONFS=false
       - PUID=1000
       - PGID=1000
+      - RUST_LOG=trace
     cap_add:
       - NET_ADMIN
       - SYS_MODULE

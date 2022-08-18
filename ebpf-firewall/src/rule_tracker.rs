@@ -1,11 +1,14 @@
 use anyhow::Result;
-use std::{collections::HashMap, net::Ipv4Addr, ops::Deref};
+use std::{collections::HashMap, net::Ipv4Addr};
 
-use aya::maps::{
-    lpm_trie::{Key, LpmTrie},
-    Map,
+use aya::{
+    maps::{
+        lpm_trie::{Key, LpmTrie},
+        MapRefMut,
+    },
+    Bpf,
 };
-use ebpf_firewall_common::{ActionStore, MAX_RULES};
+use ebpf_firewall_common::ActionStore;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct CIDR {
@@ -39,17 +42,19 @@ fn to_action_store(port_ranges: Vec<PortRange>) -> ActionStore {
     action_store
 }
 
-pub(crate) struct RuleTracker<T: Deref<Target = Map>> {
+pub(crate) struct RuleTracker {
     rule_map: HashMap<(u32, CIDR), Vec<PortRange>>,
-    ebpf_store: LpmTrie<T, [u8; 8], ActionStore>,
+    ebpf_store: LpmTrie<MapRefMut, [u8; 8], ActionStore>,
 }
 
-impl<T: Deref<Target = Map>> RuleTracker<T> {
-    pub(crate) fn new(ebpf_store: LpmTrie<T, [u8; 8], ActionStore>) -> Self {
-        Self {
+impl RuleTracker {
+    pub(crate) fn new(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
+        let ebpf_store: LpmTrie<_, [u8; 8], ActionStore> =
+            LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
+        Ok(Self {
             rule_map: HashMap::new(),
             ebpf_store,
-        }
+        })
     }
 
     pub(crate) fn add_rule(
