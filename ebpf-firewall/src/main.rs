@@ -61,16 +61,38 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut rule_tracker = RuleTracker::new(&bpf, "BLOCKLIST")?;
 
-    rule_tracker
-        .add_rule(
-            1,
-            CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
-            5000,
-            6000,
-            false,
-        )
-        .unwrap();
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 0, 0), 16),
+        800,
+        900,
+        false,
+    )?;
 
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        5000,
+        6000,
+        false,
+    )?;
+
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        300,
+        400,
+        false,
+    )?;
+
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
+        7000,
+        8000,
+        false,
+    )?;
+    tracing::info!("Current Tracker: {rule_tracker:#?}");
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
     for cpu_id in online_cpus()? {
@@ -89,6 +111,7 @@ async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayBuffe
         .map(|_| BytesMut::with_capacity(1024))
         .collect::<Vec<_>>();
     loop {
+        // TODO: If events are lost(Events produced by ebpf overflow the internal ring)
         let events = buf.read_events(&mut buffers).await.unwrap();
         for i in 0..events.read {
             let buf = &mut buffers[i];

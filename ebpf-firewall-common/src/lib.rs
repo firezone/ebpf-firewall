@@ -1,7 +1,14 @@
 #![cfg_attr(not(feature = "user"), no_std)]
 
+pub const MAX_RULES: usize = 2048;
+const START_MASK: u64 = 0x00000000_0000_FFFF;
+const END_MASK: u64 = 0x00000000_FFFF_0000;
+const END_FIRST_BIT: u64 = 16;
+const ACTION_BIT: u64 = 32;
+
 #[repr(C)]
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "user", derive(Debug))]
 pub struct PacketLog {
     pub source: [u8; 4],
     pub dest: [u8; 4],
@@ -26,14 +33,9 @@ impl std::fmt::Display for PacketLog {
     }
 }
 
-pub const MAX_RULES: usize = 2048;
-const START_MASK: u64 = 0x00000000_0000_FFFF;
-const END_MASK: u64 = 0x00000000_FFFF_0000;
-const END_FIRST_BIT: u64 = 16;
-const ACTION_BIT: u64 = 32;
-
 #[repr(C)]
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "user", derive(Debug))]
 pub struct ActionStore {
     /// bit 0-15 port range start
     /// bit 16-31 port range end

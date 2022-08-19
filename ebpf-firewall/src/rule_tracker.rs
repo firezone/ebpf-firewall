@@ -1,5 +1,9 @@
 use anyhow::Result;
-use std::{collections::HashMap, net::Ipv4Addr};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    net::Ipv4Addr,
+};
 
 use aya::{
     maps::{
@@ -23,7 +27,7 @@ impl CIDR {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct PortRange {
     pub start: u16,
     pub end: u16,
@@ -31,7 +35,7 @@ struct PortRange {
     pub origin: CIDR,
 }
 
-fn to_action_store(port_ranges: Vec<PortRange>) -> ActionStore {
+fn to_action_store(port_ranges: HashSet<PortRange>) -> ActionStore {
     let mut action_store = ActionStore::new();
     for range in port_ranges {
         // TODO
@@ -43,8 +47,16 @@ fn to_action_store(port_ranges: Vec<PortRange>) -> ActionStore {
 }
 
 pub(crate) struct RuleTracker {
-    rule_map: HashMap<(u32, CIDR), Vec<PortRange>>,
+    rule_map: HashMap<(u32, CIDR), HashSet<PortRange>>,
     ebpf_store: LpmTrie<MapRefMut, [u8; 8], ActionStore>,
+}
+
+impl Debug for RuleTracker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RuleTracker")
+            .field("rule_map", &self.rule_map)
+            .finish()
+    }
 }
 
 impl RuleTracker {
@@ -75,22 +87,45 @@ impl RuleTracker {
         let port_ranges = self
             .rule_map
             .entry((id, cidr))
-            .and_modify(|e| e.push(port_range.clone()))
-            .or_insert(vec![port_range.clone()]);
+            .and_modify(|e| {
+                e.insert(port_range.clone());
+            })
+            .or_insert(HashSet::from([port_range]));
 
         self.ebpf_store
             .insert(&cidr.get_key(id), to_action_store(port_ranges.clone()), 0)?;
 
-        self.propagate(port_range, id)
+        self.reverse_propagate(&cidr, id)?;
+        self.propagate(port_range, id)?;
+        Ok(())
     }
 
     fn propagate(&mut self, port_range: PortRange, id: u32) -> Result<()> {
-        for ((k_id, k_ip), v) in self.rule_map.iter_mut() {
-            if *k_id == id && port_range.origin.contains(k_ip) {
-                v.push(port_range);
-                self.ebpf_store
-                    .insert(&k_ip.get_key(*k_id), to_action_store(v.clone()), 0)?;
-            }
+        for ((k_id, k_ip), v) in self
+            .rule_map
+            .iter_mut()
+            .filter(|((k_id, k_ip), _)| *k_id == id && port_range.origin.contains(k_ip))
+        {
+            v.insert(port_range.clone());
+            self.ebpf_store
+                .insert(&k_ip.get_key(*k_id), to_action_store(v.clone()), 0)?;
+        }
+        Ok(())
+    }
+
+    fn reverse_propagate(&mut self, cidr: &CIDR, id: u32) -> Result<()> {
+        let propagated_ranges: HashSet<_> = self
+            .rule_map
+            .iter()
+            .filter(|((k_id, k_ip), _)| *k_id == id && k_ip.contains(cidr))
+            .flat_map(|(_, v)| v)
+            .cloned()
+            .collect();
+        if let Some(port_ranges) = self.rule_map.get_mut(&(id, *cidr)) {
+            port_ranges.extend(propagated_ranges);
+
+            self.ebpf_store
+                .insert(&cidr.get_key(id), to_action_store(port_ranges.clone()), 0)?;
         }
         Ok(())
     }
