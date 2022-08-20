@@ -136,9 +136,11 @@ impl CIDR {
         k.prefix > self.prefix
             && (self.mask() & u32::from(self.ip) == self.mask() & u32::from(k.ip))
     }
+
     fn mask(&self) -> u32 {
         !(u32::MAX >> self.prefix)
     }
+
     fn get_key(&self, id: u32) -> Key<[u8; 8]> {
         let key_id = id.to_be_bytes();
         let key_cidr = self.ip.octets();

@@ -92,6 +92,7 @@ async fn main() -> Result<(), anyhow::Error> {
         8000,
         false,
     )?;
+
     tracing::info!("Current Tracker: {rule_tracker:#?}");
     let mut perf_array = AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS")?)?;
 
@@ -113,11 +114,16 @@ async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayBuffe
     loop {
         // TODO: If events are lost(Events produced by ebpf overflow the internal ring)
         let events = buf.read_events(&mut buffers).await.unwrap();
-        for i in 0..events.read {
-            let buf = &mut buffers[i];
-            let ptr = buf.as_ptr() as *const PacketLog;
-            let data = unsafe { ptr.read_unaligned() };
-            tracing::info!("BPF processed packet: {data}");
-        }
+        buffers[0..events.read]
+            .iter_mut()
+            // SAFETY: read_event makes sure buf is initialized to a Packetlog
+            // Also Packetlog is Copy
+            .map(|buf| unsafe { buf_to_packet(buf) })
+            .for_each(|data| tracing::info!("Ingress Packet: {data}"));
     }
+}
+
+unsafe fn buf_to_packet(buf: &mut BytesMut) -> PacketLog {
+    let ptr = buf.as_ptr() as *const PacketLog;
+    ptr.read_unaligned()
 }
