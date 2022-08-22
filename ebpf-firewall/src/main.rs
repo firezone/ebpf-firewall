@@ -64,33 +64,57 @@ async fn main() -> Result<(), anyhow::Error> {
     rule_tracker.add_rule(
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 0, 0), 16),
-        800,
-        900,
+        800..=900,
         false,
+        0,
     )?;
 
     rule_tracker.add_rule(
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
-        5000,
-        6000,
+        5000..=6000,
         false,
+        0,
+    )?;
+
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        5500..=6000,
+        false,
+        100,
+    )?;
+
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        5800..=6000,
+        false,
+        0,
     )?;
 
     rule_tracker.add_rule(
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
-        300,
-        400,
+        300..=400,
         false,
+        100,
+    )?;
+
+    rule_tracker.add_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        350..=400,
+        true,
+        0,
     )?;
 
     rule_tracker.add_rule(
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
-        7000,
-        8000,
+        7000..=8000,
         false,
+        0,
     )?;
 
     tracing::info!("Current Tracker: {rule_tracker:#?}");

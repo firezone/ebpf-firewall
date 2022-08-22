@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
     net::Ipv4Addr,
+    ops::RangeInclusive,
 };
 
 use aya::{
@@ -27,23 +28,35 @@ impl CIDR {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PortRange {
-    pub start: u16,
-    pub end: u16,
+    pub ports: RangeInclusive<u16>,
     pub action: bool,
     pub origin: CIDR,
+    pub priority: u32,
 }
 
 fn to_action_store(port_ranges: HashSet<PortRange>) -> ActionStore {
+    let port_ranges = &mut port_ranges.iter().collect::<Vec<_>>()[..];
+    resolve_overlap(port_ranges);
+    tracing::info!("Port Ranges: {:?}", port_ranges);
+
     let mut action_store = ActionStore::new();
     for range in port_ranges {
-        // TODO
         action_store
-            .add(range.start, range.end, range.action)
+            .add(*range.ports.start(), *range.ports.end(), range.action)
             .unwrap();
     }
     action_store
+}
+
+// This is not optimal, but the way we are resolving overlaps here is:
+// We sort by prefix, this makes More specific to less specific
+// Then the ebpf search linearly for any match and use the first.
+// Effectively prioritizing the greatest prefix, meaning more specificity.
+fn resolve_overlap(port_ranges: &mut [&PortRange]) {
+    port_ranges.sort_by_key(|p| (p.origin.prefix, p.priority, usize::MAX - p.ports.len()));
+    port_ranges.reverse();
 }
 
 pub(crate) struct RuleTracker {
@@ -73,15 +86,15 @@ impl RuleTracker {
         &mut self,
         id: u32,
         cidr: CIDR,
-        port_start: u16,
-        port_end: u16,
+        ports: impl Into<RangeInclusive<u16>>,
         action: bool,
+        priority: u32,
     ) -> Result<()> {
         let port_range = PortRange {
-            start: port_start,
-            end: port_end,
+            ports: ports.into(),
             action,
             origin: cidr,
+            priority,
         };
 
         let port_ranges = self
@@ -90,7 +103,7 @@ impl RuleTracker {
             .and_modify(|e| {
                 e.insert(port_range.clone());
             })
-            .or_insert(HashSet::from([port_range]));
+            .or_insert(HashSet::from([port_range.clone()]));
 
         self.ebpf_store
             .insert(&cidr.get_key(id), to_action_store(port_ranges.clone()), 0)?;
