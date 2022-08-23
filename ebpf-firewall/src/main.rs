@@ -80,14 +80,6 @@ async fn main() -> Result<(), anyhow::Error> {
     rule_tracker.add_rule(
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
-        5500..=6000,
-        false,
-        100,
-    )?;
-
-    rule_tracker.add_rule(
-        1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5800..=6000,
         false,
         0,
@@ -105,7 +97,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         350..=400,
-        true,
+        false,
         0,
     )?;
 
@@ -113,6 +105,14 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
         7000..=8000,
+        false,
+        0,
+    )?;
+
+    rule_tracker.remove_rule(
+        1,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        5000..=6000,
         false,
         0,
     )?;

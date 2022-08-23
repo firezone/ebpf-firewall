@@ -113,6 +113,48 @@ impl RuleTracker {
         Ok(())
     }
 
+    pub(crate) fn remove_rule(
+        &mut self,
+        id: u32,
+        cidr: CIDR,
+        ports: impl Into<RangeInclusive<u16>>,
+        action: bool,
+        priority: u32,
+    ) -> Result<()> {
+        let port_range = PortRange {
+            ports: ports.into(),
+            action,
+            origin: cidr,
+            priority,
+        };
+        if let std::collections::hash_map::Entry::Occupied(_) =
+            self.rule_map.entry((id, cidr)).and_modify(|e| {
+                e.remove(&port_range);
+            })
+        {
+            self.propagate_removal(port_range, id)?;
+        }
+
+        Ok(())
+    }
+
+    fn propagate_removal(&mut self, port_range: PortRange, id: u32) -> Result<()> {
+        for ((k_id, k_ip), v) in self
+            .rule_map
+            .iter_mut()
+            .filter(|((k_id, k_ip), _)| *k_id == id && port_range.origin.contains(k_ip))
+        {
+            v.remove(&port_range);
+            if !v.is_empty() {
+                self.ebpf_store
+                    .insert(&k_ip.get_key(*k_id), to_action_store(v.clone()), 0)?;
+            } else {
+                self.ebpf_store.remove(&k_ip.get_key(*k_id))?;
+            }
+        }
+        Ok(())
+    }
+
     fn propagate(&mut self, port_range: PortRange, id: u32) -> Result<()> {
         for ((k_id, k_ip), v) in self
             .rule_map
@@ -146,12 +188,12 @@ impl RuleTracker {
 
 impl CIDR {
     fn contains(&self, k: &CIDR) -> bool {
-        k.prefix > self.prefix
+        k.prefix >= self.prefix
             && (self.mask() & u32::from(self.ip) == self.mask() & u32::from(k.ip))
     }
 
     fn mask(&self) -> u32 {
-        !(u32::MAX >> self.prefix)
+        !(u32::MAX.checked_shr(self.prefix.into()).unwrap_or(0))
     }
 
     fn get_key(&self, id: u32) -> Key<[u8; 8]> {
