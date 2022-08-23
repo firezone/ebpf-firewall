@@ -4,7 +4,7 @@ services:
   wireguard_server:
     image: wireguard-test:latest
     volumes:
-      - ../target/debug/ebpf-firewall:/ebpf-firewall:ro
+      - ../target/debug/examples/logger-firewall:/logger-firewall:ro
       - ./peers/:/config/:rw
     environment:
       - PEERS=3
@@ -25,7 +25,7 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.2
-    command: /ebpf-firewall --iface wg0
+    command: /logger-firewall --iface wg0
 
   peer1:
     image: wireguard-test:latest

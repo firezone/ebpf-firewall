@@ -14,24 +14,23 @@ use aya_bpf::{
     programs::SkBuffContext,
 };
 
-// Just using it to initialize log statics
-use aya_log_ebpf as _;
-
 mod bindings;
 use bindings::iphdr;
 
 use core::mem;
-//use ebpf_firewall_common::{ActionStore, PacketLog};
 use ebpf_firewall_common::{ActionStore, PacketLog};
 use memoffset::offset_of;
 
 use crate::bindings::{tcphdr, udphdr};
 
-#[map(name = "EVENTS")] //
+// Note: I wish we could use const values as map names
+// but alas! this is not supported yet https://github.com/rust-lang/rust/issues/52393
+// As soon as it is: move map names to const in common crate and use that instead of hardcoding
+
+#[map(name = "EVENTS")]
 static mut EVENTS: PerfEventArray<PacketLog> =
     PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
 
-// Let's support single classification for now #[map(name = "SOURCE_CLASSIFIER")]
 #[map(name = "CLASSIFIER")]
 static mut SOURCE_CLASSIFIER: HashMap<[u8; 4], u32> =
     HashMap::<[u8; 4], u32>::with_max_entries(1024, 0);

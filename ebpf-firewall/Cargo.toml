@@ -4,23 +4,27 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+default = ["tokio"]
+tokio = ["dep:tokio", "aya/async_tokio"]
+async-std = ["dep:async-std", "aya/async_std"]
+
 [dependencies]
-aya = { version = ">=0.11", features = ["async_tokio"] }
-aya-log = "0.1"
+aya = { version = ">=0.11" }
 ebpf-firewall-common = { path = "../ebpf-firewall-common", features = ["user"] }
 anyhow = "1.0.42"
-clap = { version = "3.1", features = ["derive"] }
 tracing = "0.1"
-tracing-subscriber = "0.3"
-tokio = { version = "1.18", features = [
-    "macros",
-    "rt",
-    "rt-multi-thread",
-    "net",
-    "signal",
-] }
 bytes = "1.2.1"
+tokio = { version = "1", optional = true, default-features = false }
+async-std = { version = "1", optional = true, default-features = false }
 
-[[bin]]
-name = "ebpf-firewall"
-path = "src/main.rs"
+[dev-dependencies]
+tracing-subscriber = "0.3"
+clap = { version = "3.1", features = ["derive"] }
+tokio = { version = "1.18", default-features = false, features = [
+    "signal",
+    "rt",
+    "macros",
+    "rt-multi-thread",
+] }
+num_cpus = "1"

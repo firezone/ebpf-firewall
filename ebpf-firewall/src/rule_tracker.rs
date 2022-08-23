@@ -15,15 +15,17 @@ use aya::{
 };
 use ebpf_firewall_common::ActionStore;
 
+use crate::BLOCK_TRIE;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct CIDR {
+pub struct CIDR {
     ip: Ipv4Addr,
     prefix: u8,
 }
 
 impl CIDR {
     // TODO check for valid prefix
-    pub(crate) fn new(ip: Ipv4Addr, prefix: u8) -> Self {
+    pub fn new(ip: Ipv4Addr, prefix: u8) -> Self {
         Self { ip, prefix }
     }
 }
@@ -39,7 +41,6 @@ struct PortRange {
 fn to_action_store(port_ranges: HashSet<PortRange>) -> ActionStore {
     let port_ranges = &mut port_ranges.iter().collect::<Vec<_>>()[..];
     resolve_overlap(port_ranges);
-    tracing::info!("Port Ranges: {:?}", port_ranges);
 
     let mut action_store = ActionStore::new();
     for range in port_ranges {
@@ -59,7 +60,7 @@ fn resolve_overlap(port_ranges: &mut [&PortRange]) {
     port_ranges.reverse();
 }
 
-pub(crate) struct RuleTracker {
+pub struct RuleTracker {
     rule_map: HashMap<(u32, CIDR), HashSet<PortRange>>,
     ebpf_store: LpmTrie<MapRefMut, [u8; 8], ActionStore>,
 }
@@ -73,7 +74,11 @@ impl Debug for RuleTracker {
 }
 
 impl RuleTracker {
-    pub(crate) fn new(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
+    pub fn new(bpf: &Bpf) -> Result<Self> {
+        Self::new_with_name(bpf, BLOCK_TRIE)
+    }
+
+    fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
         let ebpf_store: LpmTrie<_, [u8; 8], ActionStore> =
             LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
         Ok(Self {
@@ -82,7 +87,7 @@ impl RuleTracker {
         })
     }
 
-    pub(crate) fn add_rule(
+    pub fn add_rule(
         &mut self,
         id: u32,
         cidr: CIDR,
@@ -113,7 +118,7 @@ impl RuleTracker {
         Ok(())
     }
 
-    pub(crate) fn remove_rule(
+    pub fn remove_rule(
         &mut self,
         id: u32,
         cidr: CIDR,
