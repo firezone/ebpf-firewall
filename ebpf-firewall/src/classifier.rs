@@ -27,4 +27,9 @@ impl Classifier {
         self.ebpf_map.insert(ip.octets(), id, 0)?;
         Ok(())
     }
+
+    pub fn remove(&mut self, ip: &Ipv4Addr) -> Result<()> {
+        self.ebpf_map.remove(&ip.octets())?;
+        Ok(())
+    }
 }

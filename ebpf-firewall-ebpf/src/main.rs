@@ -60,13 +60,14 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     };
 
     let class = source_class(source);
-    let action = get_action(class, dest, port);
+    let action = get_action(class, dest, port, proto);
 
     let log_entry = PacketLog {
         source,
         dest,
         action,
-        port: port as u32,
+        port,
+        proto: proto as u16,
     };
 
     EVENTS.output(&ctx, &log_entry, 0);
@@ -82,8 +83,7 @@ fn source_class(address: [u8; 4]) -> Option<[u8; 4]> {
     }
 }
 
-// Okay yeah, this is ugly, will refacto exactly how this works later
-fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16) -> i32 {
+fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16, proto: u8) -> i32 {
     // SAFETY?
     let block_list = unsafe { &BLOCKLIST };
     // TODO: here we allocate `action_store` in the stack.
@@ -92,7 +92,7 @@ fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16) -> i32 {
     // Note: This applies in release mode also if we drop(scoping) the action_store.
     // I've not found a way to tell rustc to re-use the same memory
     let action_store = block_list.get(&Key::new(64, get_key(group, address)));
-    if let Some(action) = get_store_action(&action_store, port) {
+    if let Some(action) = get_store_action(&action_store, port, proto) {
         match action {
             true => return TC_ACT_OK,
             false => return TC_ACT_SHOT,
@@ -101,7 +101,7 @@ fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16) -> i32 {
 
     if group.is_some() {
         let action_store = block_list.get(&Key::new(64, get_key(None, address)));
-        if let Some(action) = get_store_action(&action_store, port) {
+        if let Some(action) = get_store_action(&action_store, port, proto) {
             match action {
                 true => return TC_ACT_OK,
                 false => return TC_ACT_SHOT,
@@ -112,8 +112,10 @@ fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16) -> i32 {
     DEFAULT_ACTION
 }
 
-fn get_store_action(action_store: &Option<&ActionStore>, port: u16) -> Option<bool> {
-    action_store.map(|store| store.lookup(port)).flatten()
+fn get_store_action(action_store: &Option<&ActionStore>, port: u16, proto: u8) -> Option<bool> {
+    action_store
+        .map(|store| store.lookup(port, proto))
+        .flatten()
 }
 
 fn get_key(group: Option<[u8; 4]>, address: [u8; 4]) -> [u8; 8] {

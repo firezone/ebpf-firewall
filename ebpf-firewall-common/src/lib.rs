@@ -3,6 +3,7 @@
 mod action_store;
 
 pub use action_store::ActionStore;
+pub use action_store::GENERIC_PROTO;
 
 #[cfg(feature = "user")]
 pub use action_store::ActionStoreError;
@@ -14,8 +15,10 @@ pub struct PacketLog {
     pub source: [u8; 4],
     pub dest: [u8; 4],
     pub action: i32,
-    // 32 instead of 16 for padding
-    pub port: u32,
+    pub port: u16,
+    // 8 bits proto,
+    // 8 bits padding,
+    pub proto: u16,
 }
 
 #[cfg(feature = "user")]
@@ -25,11 +28,12 @@ impl std::fmt::Display for PacketLog {
 
         write!(
             f,
-            "ipv4: source {} destination {} action {} port {}",
+            "ipv4: source {} destination {} action {} port {} proto {}",
             Ipv4Addr::from(self.source),
             Ipv4Addr::from(self.dest),
             self.action,
-            self.port
+            self.port,
+            self.proto
         )
     }
 }

@@ -11,5 +11,8 @@ user = ["aya", "thiserror"]
 aya = { version = ">=0.11", optional = true }
 thiserror = { version = "1", optional = true }
 
+[dev-dependencies]
+test-case = "2.2"
+
 [lib]
 path = "src/lib.rs"

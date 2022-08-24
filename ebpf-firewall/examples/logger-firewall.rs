@@ -1,7 +1,7 @@
 use std::net::Ipv4Addr;
 
 use clap::Parser;
-use ebpf_firewall::{load_program, Classifier, Logger, RuleTracker, CIDR};
+use ebpf_firewall::{init, Classifier, Logger, Protocol, RuleTracker, CIDR};
 use tokio::signal;
 
 #[derive(Debug, Parser)]
@@ -15,7 +15,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
     tracing_subscriber::fmt::init();
 
-    let bpf = load_program(opt.iface)?;
+    let bpf = init(opt.iface)?;
 
     let mut classifier = Classifier::new(&bpf)?;
     classifier.insert(Ipv4Addr::new(10, 13, 13, 2), 1)?;
@@ -28,6 +28,7 @@ async fn main() -> Result<(), anyhow::Error> {
         800..=900,
         false,
         0,
+        Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
@@ -36,6 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
         5000..=6000,
         false,
         0,
+        Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
@@ -44,6 +46,7 @@ async fn main() -> Result<(), anyhow::Error> {
         5800..=6000,
         false,
         0,
+        Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
@@ -52,6 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
         300..=400,
         false,
         100,
+        Protocol::UDP,
     )?;
 
     rule_tracker.add_rule(
@@ -60,6 +64,7 @@ async fn main() -> Result<(), anyhow::Error> {
         350..=400,
         false,
         0,
+        Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
@@ -68,6 +73,7 @@ async fn main() -> Result<(), anyhow::Error> {
         7000..=8000,
         false,
         0,
+        Protocol::Generic,
     )?;
 
     rule_tracker.remove_rule(
@@ -76,6 +82,7 @@ async fn main() -> Result<(), anyhow::Error> {
         5000..=6000,
         false,
         0,
+        Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
@@ -84,6 +91,7 @@ async fn main() -> Result<(), anyhow::Error> {
         5000..=6000,
         false,
         0,
+        Protocol::Generic,
     )?;
 
     let mut logger = Logger::new(&bpf)?;

@@ -7,6 +7,7 @@ use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::{include_bytes_aligned, Bpf};
 
 pub use classifier::Classifier;
+use ebpf_firewall_common::GENERIC_PROTO;
 pub use logger::Logger;
 pub use rule_tracker::RuleTracker;
 pub use rule_tracker::CIDR;
@@ -18,7 +19,7 @@ const EVENT_ARRAY: &str = "EVENTS";
 const CLASSIFIER_MAP: &str = "CLASSIFIER";
 const BLOCK_TRIE: &str = "BLOCKLIST";
 
-pub fn load_program(iface: String) -> Result<Bpf> {
+pub fn init(iface: String) -> Result<Bpf> {
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/debug/ebpf-firewall"
@@ -36,4 +37,12 @@ pub fn load_program(iface: String) -> Result<Bpf> {
     program.attach(&iface, TcAttachType::Ingress)?;
 
     Ok(bpf)
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Protocol {
+    TCP = 0x06u8,
+    UDP = 0x11u8,
+    Generic = GENERIC_PROTO,
 }

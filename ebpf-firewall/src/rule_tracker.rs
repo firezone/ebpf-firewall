@@ -14,8 +14,8 @@ use aya::{
 };
 use ebpf_firewall_common::ActionStore;
 
-use crate::Result;
 use crate::BLOCK_TRIE;
+use crate::{Protocol, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CIDR {
@@ -36,6 +36,7 @@ struct PortRange {
     pub action: bool,
     pub origin: CIDR,
     pub priority: u32,
+    pub proto: Protocol,
 }
 
 fn to_action_store(port_ranges: HashSet<PortRange>) -> ActionStore {
@@ -45,7 +46,12 @@ fn to_action_store(port_ranges: HashSet<PortRange>) -> ActionStore {
     let mut action_store = ActionStore::default();
     for range in port_ranges {
         action_store
-            .add(*range.ports.start(), *range.ports.end(), range.action)
+            .add(
+                *range.ports.start(),
+                *range.ports.end(),
+                range.action,
+                range.proto as u8,
+            )
             .unwrap();
     }
     action_store
@@ -94,12 +100,14 @@ impl RuleTracker {
         ports: impl Into<RangeInclusive<u16>>,
         action: bool,
         priority: u32,
+        proto: Protocol,
     ) -> Result<()> {
         let port_range = PortRange {
             ports: ports.into(),
             action,
             origin: cidr,
             priority,
+            proto,
         };
 
         let port_ranges = self
@@ -125,12 +133,14 @@ impl RuleTracker {
         ports: impl Into<RangeInclusive<u16>>,
         action: bool,
         priority: u32,
+        proto: Protocol,
     ) -> Result<()> {
         let port_range = PortRange {
             ports: ports.into(),
             action,
             origin: cidr,
             priority,
+            proto,
         };
         if let std::collections::hash_map::Entry::Occupied(_) =
             self.rule_map.entry((id, cidr)).and_modify(|e| {
