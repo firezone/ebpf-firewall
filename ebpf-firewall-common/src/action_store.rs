@@ -4,7 +4,8 @@ mod user;
 #[cfg(feature = "user")]
 pub use user::ActionStoreError;
 
-pub const MAX_RULES: usize = 2048;
+// 2048 causes a stack overflow, be very careful about this value!
+pub const MAX_RULES: usize = 1024;
 const START_MASK: u64 = 0x00000000_0000_FFFF;
 const END_MASK: u64 = 0x00000000_FFFF_0000;
 const END_FIRST_BIT: u64 = 16;

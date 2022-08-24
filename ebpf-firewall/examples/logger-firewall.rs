@@ -78,6 +78,14 @@ async fn main() -> Result<(), anyhow::Error> {
         0,
     )?;
 
+    rule_tracker.add_rule(
+        0,
+        CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        5000..=6000,
+        false,
+        0,
+    )?;
+
     let mut logger = Logger::new(&bpf)?;
     logger.init()?;
     signal::ctrl_c().await?;

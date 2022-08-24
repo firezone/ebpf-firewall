@@ -84,21 +84,36 @@ fn source_class(address: [u8; 4]) -> Option<[u8; 4]> {
 
 // Okay yeah, this is ugly, will refacto exactly how this works later
 fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16) -> i32 {
-    // For now let's assume things are correctly initialzed
-    let action_store = unsafe { BLOCKLIST.get(&Key::new(64, get_key(group, address))) };
-    if let Some(action_store) = action_store {
-        if let Some(action) = action_store.lookup(port) {
-            if action {
-                TC_ACT_OK
-            } else {
-                TC_ACT_SHOT
-            }
-        } else {
-            DEFAULT_ACTION
+    // SAFETY?
+    let block_list = unsafe { &BLOCKLIST };
+    // TODO: here we allocate `action_store` in the stack.
+    // below we do the same. Even if we make this `mut`.
+    // This limits us in the number of rules we can store for a single entry.
+    // Note: This applies in release mode also if we drop(scoping) the action_store.
+    // I've not found a way to tell rustc to re-use the same memory
+    let action_store = block_list.get(&Key::new(64, get_key(group, address)));
+    if let Some(action) = get_store_action(&action_store, port) {
+        match action {
+            true => return TC_ACT_OK,
+            false => return TC_ACT_SHOT,
         }
-    } else {
-        DEFAULT_ACTION
     }
+
+    if group.is_some() {
+        let action_store = block_list.get(&Key::new(64, get_key(None, address)));
+        if let Some(action) = get_store_action(&action_store, port) {
+            match action {
+                true => return TC_ACT_OK,
+                false => return TC_ACT_SHOT,
+            }
+        }
+    }
+
+    DEFAULT_ACTION
+}
+
+fn get_store_action(action_store: &Option<&ActionStore>, port: u16) -> Option<bool> {
+    action_store.map(|store| store.lookup(port)).flatten()
 }
 
 fn get_key(group: Option<[u8; 4]>, address: [u8; 4]) -> [u8; 8] {
