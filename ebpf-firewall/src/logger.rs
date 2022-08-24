@@ -1,11 +1,11 @@
 #![cfg(any(feature = "tokio", feature = "async_std"))]
 
+use crate::Result;
 use std::ops::DerefMut;
 
 // This module could be expanded to be used with `PerfEventArray`
 // That way we wouldn't depend on having a tokio or async_std runtime
 // to log the events and that could expand our supported platforms.
-use anyhow::Result;
 use aya::{
     maps::{
         perf::{AsyncPerfEventArray, AsyncPerfEventArrayBuffer},

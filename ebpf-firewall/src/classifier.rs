@@ -1,11 +1,11 @@
 use std::net::Ipv4Addr;
 
-use anyhow::Result;
 use aya::{
     maps::{HashMap, MapRefMut},
     Bpf,
 };
 
+use crate::Result;
 use crate::CLASSIFIER_MAP;
 
 pub struct Classifier {

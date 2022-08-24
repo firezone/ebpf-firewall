@@ -1,4 +1,3 @@
-use anyhow::Result;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -15,6 +14,7 @@ use aya::{
 };
 use ebpf_firewall_common::ActionStore;
 
+use crate::Result;
 use crate::BLOCK_TRIE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,7 +42,7 @@ fn to_action_store(port_ranges: HashSet<PortRange>) -> ActionStore {
     let port_ranges = &mut port_ranges.iter().collect::<Vec<_>>()[..];
     resolve_overlap(port_ranges);
 
-    let mut action_store = ActionStore::new();
+    let mut action_store = ActionStore::default();
     for range in port_ranges {
         action_store
             .add(*range.ports.start(), *range.ports.end(), range.action)
@@ -108,7 +108,7 @@ impl RuleTracker {
             .and_modify(|e| {
                 e.insert(port_range.clone());
             })
-            .or_insert(HashSet::from([port_range.clone()]));
+            .or_insert_with(|| HashSet::from([port_range.clone()]));
 
         self.ebpf_store
             .insert(&cidr.get_key(id), to_action_store(port_ranges.clone()), 0)?;
