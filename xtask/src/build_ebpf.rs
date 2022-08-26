@@ -46,6 +46,8 @@ pub struct Options {
 pub fn build_ebpf(opts: Options) -> Result<(), anyhow::Error> {
     let dir = PathBuf::from("ebpf-firewall-ebpf");
     let target = format!("--target={}", opts.target);
+    // Should we: RUSTFLAGS="-C link-arg=--unroll-loops"?
+    // 5.3
     let mut args = vec![
         "+nightly",
         "build",

@@ -4,7 +4,7 @@ use std::{fs::File, io::Write, path::PathBuf};
 pub fn generate() -> Result<(), anyhow::Error> {
     // TODO: Here there must be a better way to get the app directory
     let dir = PathBuf::from("ebpf-firewall-ebpf/src");
-    let names: Vec<&str> = vec!["iphdr", "ethhdr", "udphdr", "tcphdr"];
+    let names: Vec<&str> = vec!["iphdr", "ipv6hdr", "ethhdr", "udphdr", "tcphdr"];
     let bindings = aya_gen::generate(
         InputFile::Btf(PathBuf::from("/sys/kernel/btf/vmlinux")),
         &names,

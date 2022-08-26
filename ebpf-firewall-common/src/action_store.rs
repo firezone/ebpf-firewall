@@ -5,7 +5,7 @@ mod user;
 pub use user::ActionStoreError;
 
 // 2048 causes a stack overflow, be very careful about this value!
-pub const MAX_RULES: usize = 1024;
+pub const MAX_RULES: usize = 100;
 // 0xFF should be reserved so this should work forever....
 // We have some free bytes in ActionStore we could as well use a u16 and 0x0100
 pub const GENERIC_PROTO: u8 = 0xFF;
@@ -55,6 +55,11 @@ fn proto(rule: u64) -> u8 {
 
 impl ActionStore {
     // TODO: Use an enum for Action
+    // Here we have 2 problems:
+    // Firstly, this is a loop, and bounded loops are supported by kernel 5.3 and onwards
+    // This can be helped, sometimes, by using the aya-linker flag --unroll-loops
+    // Furthemore, this can limit the number of rules due to too many jumps or insts for the verifier
+    // we need to revisit the loop, maybe do some unrolling ourselves or look for another way
     pub fn lookup(&self, val: u16, proto: u8) -> Option<bool> {
         // TODO: We can optimize by sorting
         for rule in self.rules.iter().take(self.rules_len as usize) {

@@ -16,8 +16,8 @@ pub use error::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 const EVENT_ARRAY: &str = "EVENTS";
-const CLASSIFIER_MAP: &str = "CLASSIFIER";
-const BLOCK_TRIE: &str = "BLOCKLIST";
+const SOURCE_ID_IPV4: &str = "SOURCE_ID_IPV4";
+const ACTION_MAP_IPV4: &str = "ACTION_MAP_IPV4";
 
 pub fn init(iface: String) -> Result<Bpf> {
     #[cfg(debug_assertions)]

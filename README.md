@@ -34,6 +34,10 @@ cargo xtask run -- --interface <iface_name>
 
 ## Minimum Kernel Requirements
 
+Bounded loops require kernel 5.3 [see here](https://lwn.net/Articles/794934/)
+
+We can pass `RUSTFLAGS=-C link-arg=--unroll-loops` to let the compiler try to unroll them instead.
+
 | Architecture | Common devices | Minimum kernel required |
 | --- | --- | --- |
 | `amd64` | Commodity hardware | |

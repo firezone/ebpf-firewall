@@ -30,6 +30,8 @@ fn build(opts: &Options) -> Result<(), anyhow::Error> {
     if opts.release {
         args.push("--release")
     }
+    args.push("--example");
+    args.push("logger-firewall");
     let status = Command::new("cargo")
         .args(&args)
         .status()
@@ -51,7 +53,7 @@ pub fn run(opts: Options) -> Result<(), anyhow::Error> {
 
     // profile we are building (release or debug)
     let profile = if opts.release { "release" } else { "debug" };
-    let bin_path = format!("target/{}/ebpf-firewall", profile);
+    let bin_path = format!("target/{}/examples/logger-firewall", profile);
 
     // arguments to pass to the application
     let mut run_args: Vec<_> = opts.run_args.iter().map(String::as_str).collect();

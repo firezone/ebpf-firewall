@@ -14,7 +14,7 @@ use aya::{
 };
 use ebpf_firewall_common::ActionStore;
 
-use crate::BLOCK_TRIE;
+use crate::ACTION_MAP_IPV4;
 use crate::{Protocol, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -81,7 +81,7 @@ impl Debug for RuleTracker {
 
 impl RuleTracker {
     pub fn new(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, BLOCK_TRIE)
+        Self::new_with_name(bpf, ACTION_MAP_IPV4)
     }
 
     fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {

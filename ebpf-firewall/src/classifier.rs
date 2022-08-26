@@ -6,7 +6,7 @@ use aya::{
 };
 
 use crate::Result;
-use crate::CLASSIFIER_MAP;
+use crate::SOURCE_ID_IPV4;
 
 pub struct Classifier {
     ebpf_map: HashMap<MapRefMut, [u8; 4], u32>,
@@ -14,7 +14,7 @@ pub struct Classifier {
 
 impl Classifier {
     pub fn new(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, CLASSIFIER_MAP)
+        Self::new_with_name(bpf, SOURCE_ID_IPV4)
     }
 
     fn new_with_name(bpf: &Bpf, map_name: impl AsRef<str>) -> Result<Self> {

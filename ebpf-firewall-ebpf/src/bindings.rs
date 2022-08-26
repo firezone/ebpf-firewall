@@ -87,6 +87,18 @@ pub type __be16 = __u16;
 pub type __be32 = __u32;
 #[repr(C)]
 #[derive(Copy, Clone)]
+pub struct in6_addr {
+    pub in6_u: in6_addr__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union in6_addr__bindgen_ty_1 {
+    pub u6_addr8: [__u8; 16usize],
+    pub u6_addr16: [__be16; 8usize],
+    pub u6_addr32: [__be32; 4usize],
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ethhdr {
     pub h_dest: [::aya_bpf::cty::c_uchar; 6usize],
     pub h_source: [::aya_bpf::cty::c_uchar; 6usize],
@@ -318,6 +330,55 @@ impl iphdr {
         __bindgen_bitfield_unit.set(0usize, 4u8, {
             let ihl: u8 = unsafe { ::core::mem::transmute(ihl) };
             ihl as u64
+        });
+        __bindgen_bitfield_unit.set(4usize, 4u8, {
+            let version: u8 = unsafe { ::core::mem::transmute(version) };
+            version as u64
+        });
+        __bindgen_bitfield_unit
+    }
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct ipv6hdr {
+    pub _bitfield_align_1: [u8; 0],
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
+    pub flow_lbl: [__u8; 3usize],
+    pub payload_len: __be16,
+    pub nexthdr: __u8,
+    pub hop_limit: __u8,
+    pub saddr: in6_addr,
+    pub daddr: in6_addr,
+}
+impl ipv6hdr {
+    #[inline]
+    pub fn priority(&self) -> __u8 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 4u8) as u8) }
+    }
+    #[inline]
+    pub fn set_priority(&mut self, val: __u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            self._bitfield_1.set(0usize, 4u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn version(&self) -> __u8 {
+        unsafe { ::core::mem::transmute(self._bitfield_1.get(4usize, 4u8) as u8) }
+    }
+    #[inline]
+    pub fn set_version(&mut self, val: __u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            self._bitfield_1.set(4usize, 4u8, val as u64)
+        }
+    }
+    #[inline]
+    pub fn new_bitfield_1(priority: __u8, version: __u8) -> __BindgenBitfieldUnit<[u8; 1usize]> {
+        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
+        __bindgen_bitfield_unit.set(0usize, 4u8, {
+            let priority: u8 = unsafe { ::core::mem::transmute(priority) };
+            priority as u64
         });
         __bindgen_bitfield_unit.set(4usize, 4u8, {
             let version: u8 = unsafe { ::core::mem::transmute(version) };

@@ -8,7 +8,6 @@ services:
       - ./peers/:/config/:rw
     environment:
       - PEERS=3
-      - ALLOWEDIPS=0.0.0.0/0
       - SERVERURL=172.8.0.2
       - LOG_CONFS=false
       - PUID=1000
@@ -20,6 +19,8 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.forwarding=1
+      - net.ipv6.conf.all.disable_ipv6=0
     # Not sure what capabilities are required to create eBPF maps
     privileged: true
     networks:
@@ -37,13 +38,14 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=0
     environment:
       - PUID=1000
       - PGID=1000
     networks:
       internal:
         ipv4_address: 172.8.0.3
-    command: /bin/sh -c "sleep 60 && echo peer1! && echo howdy | nc -nv 10.13.13.3 5500"
+    command: /bin/sh -c "sleep 60 && echo peer1! && echo howdy | nc -nv fafa::3 5500"
 
   peer2:
     image: wireguard-test:latest
@@ -55,13 +57,14 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=0
     environment:
       - PUID=1000
       - PGID=1000
     networks:
       internal:
         ipv4_address: 172.8.0.4
-    command: /bin/sh -c "sleep 50 && echo peer2! && while true; do echo "hi" | nc -lv 10.13.13.3 5500; done"
+    command: /bin/sh -c "sleep 50 && echo peer2! && while true; do echo "hi" | nc -lv fafa::3 5500; done"
 
   peer3:
     image: wireguard-test:latest
@@ -73,6 +76,7 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=0
     environment:
       - PUID=1000
       - PGID=1000
@@ -83,6 +87,8 @@ services:
 
 networks:
   internal:
+    enable_ipv6: true
     ipam:
       config:
         - subnet: 172.8.0.0/16
+        - subnet: 2005:3990:3990::/64
