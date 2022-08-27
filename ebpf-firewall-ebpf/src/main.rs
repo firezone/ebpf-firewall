@@ -15,7 +15,7 @@ use aya_bpf::{
 };
 
 mod bindings;
-use bindings::{__BindgenBitfieldUnit, iphdr};
+use bindings::iphdr;
 
 use core::mem;
 use ebpf_firewall_common::{ActionStore, PacketLog};
@@ -47,6 +47,12 @@ static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
 static mut ACTION_MAP_IPV6: LpmTrie<[u8; 20], ActionStore> =
     LpmTrie::<[u8; 20], ActionStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
 
+macro_rules! offsets_off {
+    ($parent:path, $($field:tt),+) => {
+        ($(offset_of!($parent, $field)),+)
+    };
+}
+
 #[classifier(name = "ebpf_firewall")]
 pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
     match unsafe { try_ebpf_firewall(ctx) } {
@@ -63,92 +69,100 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     // Endianess??
     let version = version(ctx.load(ETH_HDR_LEN)?);
     match version {
-        4 => process_v4(ctx, version),
-        6 => process_v6(ctx, version),
+        4 => process(ctx, version, &SOURCE_ID_IPV4, &ACTION_MAP_IPV4),
+        6 => process(ctx, version, &SOURCE_ID_IPV6, &ACTION_MAP_IPV6),
         _ => Err(-1),
     }
 }
 
-unsafe fn process_v6(ctx: SkBuffContext, version: u8) -> Result<i32, i64> {
-    let source = ctx.load(ETH_HDR_LEN + offset_of!(ipv6hdr, saddr))?;
-    let dest = ctx.load(ETH_HDR_LEN + offset_of!(ipv6hdr, daddr))?;
-    let next_header = ctx.load(ETH_HDR_LEN + offset_of!(ipv6hdr, nexthdr))?;
-    let port = match next_header {
-        TCP => u16::from_be(ctx.load(ETH_HDR_LEN + IPV6_HDR_LEN + offset_of!(tcphdr, dest))?),
-        UDP => u16::from_be(ctx.load(ETH_HDR_LEN + IPV6_HDR_LEN + offset_of!(udphdr, dest))?),
-        // MORE TODOS!
-        _ => 0,
+unsafe fn process<const N: usize, const M: usize>(
+    ctx: SkBuffContext,
+    version: u8,
+    source_map: &HashMap<[u8; N], u32>,
+    action_map: &LpmTrie<[u8; M], ActionStore>,
+) -> Result<i32, i64> {
+    let prefix_len = match version {
+        6 => 160,
+        4 => 64,
+        _ => unreachable!("Should only call with valid packet"),
     };
-    let class = source_class_v6(source);
-    let action = get_action_v6(class, dest, port, next_header);
 
+    let (source, dest, proto) = load_ntw_headers(&ctx, version)?;
+    let port = get_port(&ctx, version, proto)?;
+    let class = source_class(source_map, source);
+    let action = get_action(class, dest, action_map, port, proto, prefix_len);
+    let source = as_log_array(source);
+    let dest = as_log_array(dest);
     let log_entry = PacketLog {
         source,
         dest,
         action,
         port,
-        proto: next_header,
-        version,
-    };
-
-    EVENTS.output(&ctx, &log_entry, 0);
-    Ok(action)
-}
-
-unsafe fn process_v4(ctx: SkBuffContext, version: u8) -> Result<i32, i64> {
-    let source = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, saddr))?;
-    let dest = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, daddr))?;
-    let proto = ctx.load(ETH_HDR_LEN + offset_of!(iphdr, protocol))?;
-    // TODO: Would endianness always work?
-
-    let port = match proto {
-        TCP => u16::from_be(ctx.load(ETH_HDR_LEN + IP_HDR_LEN + offset_of!(tcphdr, dest))?),
-        UDP => u16::from_be(ctx.load(ETH_HDR_LEN + IP_HDR_LEN + offset_of!(udphdr, dest))?),
-        // MORE TODOS!
-        _ => 0,
-    };
-
-    let class = source_class(source);
-    let action = get_action(class, dest, port, proto);
-
-    let mut s = [0u8; 16];
-    let (s_ip, _) = s.split_at_mut(4);
-    s_ip.copy_from_slice(&source);
-
-    let mut d = [0u8; 16];
-    let (d_ip, _) = d.split_at_mut(4);
-    d_ip.copy_from_slice(&dest);
-    let log_entry = PacketLog {
-        source: s,
-        dest: d,
-        action,
-        port,
         proto,
         version,
     };
-
     EVENTS.output(&ctx, &log_entry, 0);
     Ok(action)
 }
 
-fn source_class_v6(address: [u8; 16]) -> Option<[u8; 4]> {
-    // Race condition if ip changes group?
-    unsafe { SOURCE_ID_IPV6.get(&address).map(|x| u32::to_be_bytes(*x)) }
+fn load_sk_buff<T>(ctx: &SkBuffContext, offset: usize) -> Result<T, i64> {
+    ctx.load::<T>(ETH_HDR_LEN + offset)
 }
 
-fn source_class(address: [u8; 4]) -> Option<[u8; 4]> {
-    // Race condition if ip changes group?
-    unsafe { SOURCE_ID_IPV4.get(&address).map(|x| u32::to_be_bytes(*x)) }
+fn load_ntw_headers<const N: usize>(
+    ctx: &SkBuffContext,
+    version: u8,
+) -> Result<([u8; N], [u8; N], u8), i64> {
+    let (source_off, dest_off, proto_off) = match version {
+        6 => offsets_off!(ipv6hdr, saddr, daddr, nexthdr),
+        4 => offsets_off!(iphdr, saddr, daddr, protocol),
+        _ => unreachable!("Should only call with valid packet"),
+    };
+    let source = load_sk_buff(&ctx, source_off)?;
+    let dest = load_sk_buff(&ctx, dest_off)?;
+    let next_header = load_sk_buff(&ctx, proto_off)?;
+    Ok((source, dest, next_header))
 }
 
-fn get_action_v6(group: Option<[u8; 4]>, address: [u8; 16], port: u16, proto: u8) -> i32 {
-    // SAFETY?
-    let block_list = unsafe { &ACTION_MAP_IPV6 };
-    // TODO: here we allocate `action_store` in the stack.
-    // below we do the same. Even if we make this `mut`.
-    // This limits us in the number of rules we can store for a single entry.
-    // Maybe we can do something similar to what the main function does with offset_of
-    let action_store = block_list.get(&Key::new(160, get_key_v6(group, address)));
+fn get_port(ctx: &SkBuffContext, version: u8, proto: u8) -> Result<u16, i64> {
+    let ip_len = match version {
+        6 => IPV6_HDR_LEN,
+        4 => IP_HDR_LEN,
+        _ => unreachable!("Should only call with valid packet"),
+    };
+    let port = match proto {
+        TCP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(tcphdr, dest))?),
+        UDP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(udphdr, dest))?),
+        _ => 0,
+    };
+
+    Ok(port)
+}
+
+fn as_log_array<const N: usize>(from: [u8; N]) -> [u8; 16] {
+    let mut to = [0u8; 16];
+    let (to_l, _) = to.split_at_mut(N);
+    to_l.copy_from_slice(&from);
+    to
+}
+
+unsafe fn source_class<const N: usize>(
+    source_map: &HashMap<[u8; N], u32>,
+    address: [u8; N],
+) -> Option<[u8; 4]> {
+    // Race condition if ip changes group?
+    source_map.get(&address).map(|x| u32::to_be_bytes(*x))
+}
+
+fn get_action<const N: usize, const M: usize>(
+    group: Option<[u8; 4]>,
+    address: [u8; N],
+    action_map: &LpmTrie<[u8; M], ActionStore>,
+    port: u16,
+    proto: u8,
+    prefix_len: u32,
+) -> i32 {
+    let action_store = action_map.get(&Key::new(prefix_len, get_key(group, address)));
     if let Some(action) = get_store_action(&action_store, port, proto) {
         match action {
             true => return TC_ACT_OK,
@@ -157,31 +171,7 @@ fn get_action_v6(group: Option<[u8; 4]>, address: [u8; 16], port: u16, proto: u8
     }
 
     if group.is_some() {
-        let action_store = block_list.get(&Key::new(160, get_key_v6(None, address)));
-        if let Some(action) = get_store_action(&action_store, port, proto) {
-            match action {
-                true => return TC_ACT_OK,
-                false => return TC_ACT_SHOT,
-            }
-        }
-    }
-
-    DEFAULT_ACTION
-}
-
-fn get_action(group: Option<[u8; 4]>, address: [u8; 4], port: u16, proto: u8) -> i32 {
-    // SAFETY?
-    let block_list = unsafe { &ACTION_MAP_IPV4 };
-    let action_store = block_list.get(&Key::new(64, get_key(group, address)));
-    if let Some(action) = get_store_action(&action_store, port, proto) {
-        match action {
-            true => return TC_ACT_OK,
-            false => return TC_ACT_SHOT,
-        }
-    }
-
-    if group.is_some() {
-        let action_store = block_list.get(&Key::new(64, get_key(None, address)));
+        let action_store = action_map.get(&Key::new(prefix_len, get_key(None, address)));
         if let Some(action) = get_store_action(&action_store, port, proto) {
             match action {
                 true => return TC_ACT_OK,
@@ -199,20 +189,10 @@ fn get_store_action(action_store: &Option<&ActionStore>, port: u16, proto: u8) -
         .flatten()
 }
 
-fn get_key_v6(group: Option<[u8; 4]>, address: [u8; 16]) -> [u8; 20] {
-    // TODO: MaybeUninit would make this easy
+fn get_key<const N: usize, const M: usize>(group: Option<[u8; 4]>, address: [u8; N]) -> [u8; M] {
+    // TODO: Could use MaybeUninit
     let group = group.unwrap_or_default();
-    let mut res = [0; 20];
-    let (res_group, res_address) = res.split_at_mut(4);
-    res_group.copy_from_slice(&group);
-    res_address.copy_from_slice(&address);
-    res
-}
-
-fn get_key(group: Option<[u8; 4]>, address: [u8; 4]) -> [u8; 8] {
-    // TODO: MaybeUninit would make this easy
-    let group = group.unwrap_or_default();
-    let mut res = [0; 8];
+    let mut res = [0; M];
     let (res_group, res_address) = res.split_at_mut(4);
     res_group.copy_from_slice(&group);
     res_address.copy_from_slice(&address);
