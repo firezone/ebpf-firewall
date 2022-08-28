@@ -1,4 +1,5 @@
 [workspace]
 members = ["ebpf-firewall", "ebpf-firewall-common", "xtask"]
 
-
+[patch.crates-io]
+aya = { git = "https://github.com/conectado/aya.git", branch = "verifier-log-level" }

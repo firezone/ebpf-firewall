@@ -1,16 +1,18 @@
+mod as_octet;
+mod cidr;
 mod classifier;
 mod error;
 mod logger;
 mod rule_tracker;
 
 use aya::programs::{tc, SchedClassifier, TcAttachType};
-use aya::{include_bytes_aligned, Bpf};
+use aya::{include_bytes_aligned, Bpf, BpfLoader};
 
+pub use cidr::{Ipv4CIDR, Ipv6CIDR};
 pub use classifier::Classifier;
 use ebpf_firewall_common::GENERIC_PROTO;
 pub use logger::Logger;
 pub use rule_tracker::RuleTracker;
-pub use rule_tracker::CIDR;
 
 pub use error::Error;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -18,14 +20,18 @@ pub type Result<T> = std::result::Result<T, Error>;
 const EVENT_ARRAY: &str = "EVENTS";
 const SOURCE_ID_IPV4: &str = "SOURCE_ID_IPV4";
 const ACTION_MAP_IPV4: &str = "ACTION_MAP_IPV4";
+const SOURCE_ID_IPV6: &str = "SOURCE_ID_IPV6";
+const ACTION_MAP_IPV6: &str = "ACTION_MAP_IPV6";
 
 pub fn init(iface: String) -> Result<Bpf> {
+    let mut loader = BpfLoader::default();
+    loader.verifier_log_level(1);
     #[cfg(debug_assertions)]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = loader.load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/debug/ebpf-firewall"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = loader.load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/ebpf-firewall"
     ))?;
 
@@ -34,7 +40,7 @@ pub fn init(iface: String) -> Result<Bpf> {
     let _ = tc::qdisc_add_clsact(&iface);
     let program: &mut SchedClassifier = bpf.program_mut("ebpf_firewall").unwrap().try_into()?;
     program.load()?;
-    program.attach(&iface, TcAttachType::Ingress)?;
+    program.attach(&iface, TcAttachType::Ingress, 0)?;
 
     Ok(bpf)
 }

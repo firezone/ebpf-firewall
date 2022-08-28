@@ -1,7 +1,10 @@
-use std::net::Ipv4Addr;
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    str::FromStr,
+};
 
 use clap::Parser;
-use ebpf_firewall::{init, Classifier, Logger, Protocol, RuleTracker, CIDR};
+use ebpf_firewall::{init, Classifier, Ipv4CIDR, Ipv6CIDR, Logger, Protocol, RuleTracker};
 use tokio::signal;
 
 #[derive(Debug, Parser)]
@@ -17,14 +20,27 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let bpf = init(opt.iface)?;
 
-    let mut classifier = Classifier::new(&bpf)?;
+    let mut classifier = Classifier::new_ipv4(&bpf)?;
     classifier.insert(Ipv4Addr::new(10, 13, 13, 2), 1)?;
 
-    let mut rule_tracker = RuleTracker::new(&bpf)?;
+    let mut classifier_v6 = Classifier::new_ipv6(&bpf)?;
+    classifier_v6.insert(Ipv6Addr::from_str("fafa::2").unwrap(), 1)?;
+
+    let mut rule_tracker = RuleTracker::new_ipv4(&bpf)?;
+    let mut rule_tracker_v6 = RuleTracker::new_ipv6(&bpf)?;
+
+    rule_tracker_v6.add_rule(
+        1,
+        Ipv6CIDR::new(Ipv6Addr::from_str("fafa::3").unwrap(), 128),
+        5000..=6000,
+        false,
+        0,
+        Protocol::TCP,
+    )?;
 
     rule_tracker.add_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 0, 0), 16),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 0, 0), 16),
         800..=900,
         false,
         0,
@@ -33,7 +49,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.add_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5000..=6000,
         false,
         0,
@@ -42,7 +58,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.add_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5800..=6000,
         false,
         0,
@@ -51,7 +67,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.add_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         300..=400,
         false,
         100,
@@ -60,7 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.add_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         350..=400,
         false,
         0,
@@ -69,7 +85,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.add_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
         7000..=8000,
         false,
         0,
@@ -78,7 +94,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.remove_rule(
         1,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5000..=6000,
         false,
         0,
@@ -87,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rule_tracker.add_rule(
         0,
-        CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         5000..=6000,
         false,
         0,
