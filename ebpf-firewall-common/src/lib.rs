@@ -2,8 +2,8 @@
 
 mod action_store;
 
-pub use action_store::ActionStore;
 pub use action_store::GENERIC_PROTO;
+pub use action_store::{Action, ActionStore};
 
 #[cfg(feature = "user")]
 pub use action_store::ActionStoreError;

@@ -10,12 +10,12 @@ use aya::{
     maps::{lpm_trie::LpmTrie, MapRefMut},
     Bpf,
 };
-use ebpf_firewall_common::ActionStore;
+use ebpf_firewall_common::{Action, ActionStore};
 
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, CIDR},
-    ACTION_MAP_IPV4, ACTION_MAP_IPV6,
+    cidr::{AsKey, AsNum, Cidr},
+    Error, ACTION_MAP_IPV4, ACTION_MAP_IPV6,
 };
 use crate::{Protocol, Result};
 
@@ -27,8 +27,8 @@ where
     T::Octets: AsRef<[u8]>,
 {
     pub ports: RangeInclusive<u16>,
-    pub action: bool,
-    pub origin: CIDR<T>,
+    pub action: Action,
+    pub origin: Cidr<T>,
     pub priority: u32,
     pub proto: Protocol,
 }
@@ -66,25 +66,32 @@ where
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
-    port_ranges.sort_by_key(|p| (p.origin.prefix(), p.priority, usize::MAX - p.ports.len()));
+    port_ranges.sort_by_key(|p| {
+        (
+            p.origin.prefix(),
+            !p.ports.contains(&0),
+            p.priority,
+            usize::MAX - p.ports.len(),
+        )
+    });
     port_ranges.reverse();
 }
 
 pub struct RuleTracker<T>
 where
     T: AsNum + From<T::Num>,
-    CIDR<T>: AsKey,
+    Cidr<T>: AsKey,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
-    rule_map: HashMap<(u32, CIDR<T>), HashSet<PortRange<T>>>,
-    ebpf_store: LpmTrie<MapRefMut, <CIDR<T> as AsKey>::KeySize, ActionStore>,
+    rule_map: HashMap<(u32, Cidr<T>), HashSet<PortRange<T>>>,
+    ebpf_store: LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, ActionStore>,
 }
 
 impl<T> Debug for RuleTracker<T>
 where
     T: AsNum + From<T::Num> + Debug,
-    CIDR<T>: AsKey,
+    Cidr<T>: AsKey,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
@@ -110,12 +117,12 @@ impl RuleTracker<Ipv6Addr> {
 impl<T> RuleTracker<T>
 where
     T: AsNum + From<T::Num> + Eq + Hash + Clone,
-    CIDR<T>: AsKey,
+    Cidr<T>: AsKey,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
-        let ebpf_store: LpmTrie<_, <CIDR<T> as AsKey>::KeySize, ActionStore> =
+        let ebpf_store: LpmTrie<_, <Cidr<T> as AsKey>::KeySize, ActionStore> =
             LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
         Ok(Self {
             rule_map: HashMap::new(),
@@ -126,14 +133,18 @@ where
     pub fn add_rule(
         &mut self,
         id: u32,
-        cidr: CIDR<T>,
+        cidr: Cidr<T>,
         ports: impl Into<RangeInclusive<u16>>,
-        action: bool,
+        action: Action,
         priority: u32,
         proto: Protocol,
     ) -> Result<()> {
+        let ports = ports.into();
+        if ports.contains(&0) && ports.len() > 1 {
+            return Err(Error::InvalidPort);
+        }
         let port_range = PortRange {
-            ports: ports.into(),
+            ports: ports,
             action,
             origin: cidr.clone(),
             priority,
@@ -159,9 +170,9 @@ where
     pub fn remove_rule(
         &mut self,
         id: u32,
-        cidr: CIDR<T>,
+        cidr: Cidr<T>,
         ports: impl Into<RangeInclusive<u16>>,
-        action: bool,
+        action: Action,
         priority: u32,
         proto: Protocol,
     ) -> Result<()> {
@@ -213,7 +224,7 @@ where
         Ok(())
     }
 
-    fn reverse_propagate(&mut self, cidr: &CIDR<T>, id: u32) -> Result<()> {
+    fn reverse_propagate(&mut self, cidr: &Cidr<T>, id: u32) -> Result<()> {
         let propagated_ranges: HashSet<_> = self
             .rule_map
             .iter()

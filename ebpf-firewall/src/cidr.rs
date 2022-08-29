@@ -7,11 +7,11 @@ use aya::{maps::lpm_trie::Key, Pod};
 
 use crate::as_octet::AsOctets;
 
-pub type Ipv4CIDR = CIDR<Ipv4Addr>;
-pub type Ipv6CIDR = CIDR<Ipv6Addr>;
+pub type Ipv4CIDR = Cidr<Ipv4Addr>;
+pub type Ipv6CIDR = Cidr<Ipv6Addr>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CIDR<T>
+pub struct Cidr<T>
 where
     T: AsNum + From<T::Num>,
     T: AsOctets,
@@ -75,7 +75,7 @@ impl AsNum for Ipv6Addr {
     }
 }
 
-impl<T> CIDR<T>
+impl<T> Cidr<T>
 where
     T: AsNum + From<T::Num>,
     T: AsOctets,
@@ -96,6 +96,7 @@ where
     fn normalize(ip: T, prefix: u8) -> T {
         T::from(ip.as_num() & Self::mask_prefix(prefix))
     }
+
     fn mask(&self) -> T::Num {
         Self::mask_prefix(self.prefix)
     }
@@ -104,7 +105,7 @@ where
         !(T::max().checked_shr(prefix.into()).unwrap_or_default())
     }
 
-    pub(crate) fn contains(&self, k: &CIDR<T>) -> bool {
+    pub(crate) fn contains(&self, k: &Cidr<T>) -> bool {
         k.prefix >= self.prefix
             && ((self.ip.as_num() & self.mask()) == (k.ip.as_num() & self.mask()))
     }
@@ -115,7 +116,7 @@ where
         let mut key_data = [0u8; N];
         let (id, cidr) = key_data.split_at_mut(4);
         id.copy_from_slice(&key_id);
-        cidr.copy_from_slice(&key_cidr.as_ref());
+        cidr.copy_from_slice(key_cidr.as_ref());
         Key::new(u32::from(self.prefix) + 32, key_data)
     }
 }
@@ -125,14 +126,14 @@ pub trait AsKey {
     fn as_key(&self, id: u32) -> Key<Self::KeySize>;
 }
 
-impl AsKey for CIDR<Ipv4Addr> {
+impl AsKey for Cidr<Ipv4Addr> {
     type KeySize = [u8; 8];
     fn as_key(&self, id: u32) -> Key<Self::KeySize> {
         self.key(id)
     }
 }
 
-impl AsKey for CIDR<Ipv6Addr> {
+impl AsKey for Cidr<Ipv6Addr> {
     type KeySize = [u8; 20];
     fn as_key(&self, id: u32) -> Key<Self::KeySize> {
         self.key(id)

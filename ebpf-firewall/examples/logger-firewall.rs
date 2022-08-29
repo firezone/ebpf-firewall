@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use ebpf_firewall::{init, Classifier, Ipv4CIDR, Ipv6CIDR, Logger, Protocol, RuleTracker};
+use ebpf_firewall::{init, Action, Classifier, Ipv4CIDR, Ipv6CIDR, Logger, Protocol, RuleTracker};
 use tokio::signal;
 
 #[derive(Debug, Parser)]
@@ -33,7 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv6CIDR::new(Ipv6Addr::from_str("fafa::3").unwrap(), 128),
         5000..=6000,
-        false,
+        Action::Reject,
         0,
         Protocol::TCP,
     )?;
@@ -42,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 0, 0), 16),
         800..=900,
-        false,
+        Action::Reject,
         0,
         Protocol::TCP,
     )?;
@@ -51,7 +51,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5000..=6000,
-        false,
+        Action::Reject,
         0,
         Protocol::TCP,
     )?;
@@ -60,7 +60,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5800..=6000,
-        false,
+        Action::Reject,
         0,
         Protocol::TCP,
     )?;
@@ -69,7 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         300..=400,
-        false,
+        Action::Reject,
         100,
         Protocol::UDP,
     )?;
@@ -78,7 +78,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         350..=400,
-        false,
+        Action::Reject,
         0,
         Protocol::TCP,
     )?;
@@ -87,7 +87,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
         7000..=8000,
-        false,
+        Action::Reject,
         0,
         Protocol::Generic,
     )?;
@@ -96,7 +96,7 @@ async fn main() -> Result<(), anyhow::Error> {
         1,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
         5000..=6000,
-        false,
+        Action::Reject,
         0,
         Protocol::TCP,
     )?;
@@ -105,7 +105,7 @@ async fn main() -> Result<(), anyhow::Error> {
         0,
         Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
         5000..=6000,
-        false,
+        Action::Reject,
         0,
         Protocol::Generic,
     )?;

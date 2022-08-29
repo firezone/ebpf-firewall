@@ -14,6 +14,7 @@ use aya_bpf::{
     programs::SkBuffContext,
 };
 
+#[allow(clippy::all)]
 mod bindings;
 use bindings::iphdr;
 
@@ -69,8 +70,8 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
     // Endianess??
     let version = version(ctx.load(ETH_HDR_LEN)?);
     match version {
-        4 => process(ctx, version, &SOURCE_ID_IPV4, &ACTION_MAP_IPV4),
         6 => process(ctx, version, &SOURCE_ID_IPV6, &ACTION_MAP_IPV6),
+        4 => process(ctx, version, &SOURCE_ID_IPV4, &ACTION_MAP_IPV4),
         _ => Err(-1),
     }
 }
@@ -118,9 +119,9 @@ fn load_ntw_headers<const N: usize>(
         4 => offsets_off!(iphdr, saddr, daddr, protocol),
         _ => unreachable!("Should only call with valid packet"),
     };
-    let source = load_sk_buff(&ctx, source_off)?;
-    let dest = load_sk_buff(&ctx, dest_off)?;
-    let next_header = load_sk_buff(&ctx, proto_off)?;
+    let source = load_sk_buff(ctx, source_off)?;
+    let dest = load_sk_buff(ctx, dest_off)?;
+    let next_header = load_sk_buff(ctx, proto_off)?;
     Ok((source, dest, next_header))
 }
 
@@ -164,26 +165,20 @@ fn get_action<const N: usize, const M: usize>(
 ) -> i32 {
     let action_store = action_map.get(&Key::new(prefix_len, get_key(group, address)));
     if let Some(action) = get_store_action(&action_store, port, proto) {
-        match action {
-            true => return TC_ACT_OK,
-            false => return TC_ACT_SHOT,
-        }
+        return action;
     }
 
     if group.is_some() {
         let action_store = action_map.get(&Key::new(prefix_len, get_key(None, address)));
         if let Some(action) = get_store_action(&action_store, port, proto) {
-            match action {
-                true => return TC_ACT_OK,
-                false => return TC_ACT_SHOT,
-            }
+            return action;
         }
     }
 
     DEFAULT_ACTION
 }
 
-fn get_store_action(action_store: &Option<&ActionStore>, port: u16, proto: u8) -> Option<bool> {
+fn get_store_action(action_store: &Option<&ActionStore>, port: u16, proto: u8) -> Option<i32> {
     action_store
         .map(|store| store.lookup(port, proto))
         .flatten()

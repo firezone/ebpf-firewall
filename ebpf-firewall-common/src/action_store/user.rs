@@ -1,7 +1,7 @@
 #![cfg(feature = "user")]
 
 use crate::action_store::{new_rule, MAX_RULES};
-use crate::ActionStore;
+use crate::{Action, ActionStore};
 use thiserror::Error;
 
 impl ActionStore {
@@ -9,7 +9,7 @@ impl ActionStore {
         &mut self,
         start: u16,
         end: u16,
-        action: bool,
+        action: Action,
         proto: u8,
     ) -> Result<(), ActionStoreError> {
         if (self.rules_len as usize) < MAX_RULES {

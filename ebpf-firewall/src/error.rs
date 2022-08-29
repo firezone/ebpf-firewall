@@ -23,4 +23,6 @@ pub enum Error {
     IoError(#[from] io::Error),
     #[error(transparent)]
     PerfBufferError(#[from] PerfBufferError),
+    #[error("Port range is invalid")]
+    InvalidPort,
 }
