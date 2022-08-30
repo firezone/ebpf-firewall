@@ -19,8 +19,8 @@ pub struct Opt {
 // See: https://github.com/aya-rs/aya-template/pull/51
 fn bump_memlock_rlimit() -> Result<(), anyhow::Error> {
     let rlimit = libc::rlimit {
-        rlim_cur: 128 << 20,
-        rlim_max: 128 << 20,
+        rlim_cur: 256 << 20,
+        rlim_max: libc::RLIM_INFINITY,
     };
 
     if unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlimit) } != 0 {
