@@ -8,10 +8,10 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  PLATFORM: ubuntu-18.04
+
 jobs:
   build:
-    runs-on: ${{env.PLATFORM}}
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v3
       - name: Install latest nightly
@@ -27,9 +27,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ env.PLATFORM }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ubuntu-18.04-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ env.PLATFORM }}-cargo
+            ubuntu-18.04-cargo
       - name: Install bpf-linker
         run: cargo install bpf-linker
       - name: Build Ebpf
@@ -48,7 +48,7 @@ jobs:
 
   # Keeping these separate for ease of testing in the future
   test-run:
-    runs-on: env.PLATFORM
+    runs-on: ubuntu-18.04
     needs: build
     steps:
       - name: Download artifact
