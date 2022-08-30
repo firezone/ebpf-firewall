@@ -49,4 +49,4 @@ jobs:
       # Using sudo here, we might want to tune it later
       # There are certain additional limitations for non-sudo users
       - name: Run eBPF code
-        run: sudo ./ci-run
+        run: echo "ls" && ls && echo "sudo ls" && sudo ls && sudo ./ci-run
