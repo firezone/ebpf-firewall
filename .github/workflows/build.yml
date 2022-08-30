@@ -18,9 +18,13 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
-          override: true
           # TODO: Not sure why rust-src is needed
           components: clippy, rust-src
+      - name: Install musl
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
 
       - name: Cache cargo modules
         uses: actions/cache@v3
@@ -37,11 +41,11 @@ jobs:
       - name: Build Ebpf
         run: cargo xtask build-ebpf
       - name: Build
-        run: cargo build --verbose --example ci-run
+        run: cargo build --target x86_64-unknown-linux-musl --verbose --example ci-run
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --target x86_64-unknown-linux-musl --verbose
       - name: Run clippy
-        run: cargo clippy -- -D clippy::all
+        run: cargo clippy --target x86_64-unknown-linux-musl -- -D clippy::all
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
