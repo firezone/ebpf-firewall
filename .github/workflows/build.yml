@@ -22,6 +22,17 @@ jobs:
           override: true
           # TODO: Not sure why rust-src is needed
           components: clippy, rust-src
+
+      - name: Cache cargo modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Install bpf-linker
         run: cargo install bpf-linker
       - name: Build Ebpf
