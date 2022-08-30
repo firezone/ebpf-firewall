@@ -2,4 +2,4 @@
 members = ["ebpf-firewall", "ebpf-firewall-common", "xtask"]
 
 [patch.crates-io]
-aya = { git = "https://github.com/conectado/aya.git", branch = "verifier-log-level" }
+aya = { git = "https://github.com/aya-rs/aya.git", rev = "b95adc3135f9b9cc74d16052250b5d8611caf9dc" }

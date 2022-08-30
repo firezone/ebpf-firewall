@@ -6,7 +6,7 @@ mod logger;
 mod rule_tracker;
 
 use aya::programs::{tc, SchedClassifier, TcAttachType};
-use aya::{include_bytes_aligned, Bpf, BpfLoader, VerifierLogLevel};
+use aya::{include_bytes_aligned, Bpf};
 
 pub use cidr::{Ipv4CIDR, Ipv6CIDR};
 pub use classifier::Classifier;
@@ -25,14 +25,12 @@ const SOURCE_ID_IPV6: &str = "SOURCE_ID_IPV6";
 const ACTION_MAP_IPV6: &str = "ACTION_MAP_IPV6";
 
 pub fn init(iface: String) -> Result<Bpf> {
-    let mut loader = BpfLoader::default();
-    loader.verifier_log_level(VerifierLogLevel::Stats);
     #[cfg(debug_assertions)]
-    let mut bpf = loader.load(include_bytes_aligned!(
+    let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/debug/ebpf-firewall"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = loader.load(include_bytes_aligned!(
+    let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/ebpf-firewall"
     ))?;
 
