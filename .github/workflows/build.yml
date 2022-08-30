@@ -20,7 +20,8 @@ jobs:
         with:
           toolchain: nightly
           override: true
-          components: rustfmt, clippy
+          # TODO: Not sure why rust-src is needed
+          components: clippy, rust-src
       - name: Build Ebpf
         run: cargo xtask build-ebpf
       - name: Build
