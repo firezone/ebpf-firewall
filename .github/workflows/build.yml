@@ -11,7 +11,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    strategy:
+      platform: ubuntu-18.04
+    runs-on: ${{platform}}
     steps:
       - uses: actions/checkout@v3
       - name: Install latest nightly
@@ -20,17 +22,16 @@ jobs:
           toolchain: nightly
           # TODO: Not sure why rust-src is needed
           components: clippy, rust-src
-      # Not using cache for testing
-      # - name: Cache cargo modules
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: |
-      #       ~/.cargo/registry
-      #       ~/.cargo/git
-      #       target
-      #     key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-cargo
+      - name: Cache cargo modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ platform }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ platform }}-cargo
       - name: Install bpf-linker
         run: cargo install bpf-linker
       - name: Build Ebpf
