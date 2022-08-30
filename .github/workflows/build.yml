@@ -11,8 +11,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v3
       - name: Install latest nightly
@@ -26,8 +25,7 @@ jobs:
       - name: Cache cargo modules
         uses: actions/cache@v3
         with:
-          path: |
-            ~/.cargo/registry
+          path: | ~/.cargo/registry
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
@@ -49,30 +47,9 @@ jobs:
           name: ci-run
           path: target/debug/examples/ci-run
 
+  # Keeping these separate for ease of testing in the future
   test-run:
-    strategy:
-      matrix:
-        platform:
-          # ARM-based
-          # TODO!
-
-          # x64-based
-          #- amazonlinux2-x64
-          #- centos7-x64
-          #- centos8-x64
-          #- centos9-x64
-          #- debian10-x64
-          #- debian11-x64
-          #- fedora33-x64
-          #- fedora34-x64
-          #- fedora35-x64
-          #- ubuntu1804-x64
-          - ubuntu-latest
-          - ubuntu-22.04
-          - ubuntu-18.04
-          #- ubuntu2204-x64
-          #- opensuse15-x64
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-18.04
     needs: build
     steps:
       - name: Download artifact
