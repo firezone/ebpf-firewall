@@ -5,7 +5,7 @@ mod user;
 pub use user::ActionStoreError;
 
 // 2048 causes a stack overflow, be very careful about this value!
-pub const MAX_RULES: usize = 10000;
+pub const MAX_RULES: usize = 500;
 // 0xFF should be reserved so this should work forever....
 // We have some free bytes in ActionStore we could as well use a u16 and 0x0100
 pub const GENERIC_PROTO: u8 = 0xFF;
