@@ -20,32 +20,28 @@ jobs:
           toolchain: nightly
           # TODO: Not sure why rust-src is needed
           components: clippy, rust-src
-      - name: Install musl
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
-
-      - name: Cache cargo modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      # Not using cache for testing
+      # - name: Cache cargo modules
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: |
+      #       ~/.cargo/registry
+      #       ~/.cargo/git
+      #       target
+      #     # Forcing discard cache for tests
+      #     key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-cargo
       - name: Install bpf-linker
         run: cargo install bpf-linker
       - name: Build Ebpf
         run: cargo xtask build-ebpf
       - name: Build
-        run: cargo build --target x86_64-unknown-linux-musl --verbose --example ci-run
+        run: cargo build --verbose --example ci-run
       - name: Run tests
-        run: cargo test --target x86_64-unknown-linux-musl --verbose
+        run: cargo test --verbose
       - name: Run clippy
-        run: cargo clippy --target x86_64-unknown-linux-musl -- -D clippy::all
+        run: cargo clippy --target -- -D clippy::all
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
