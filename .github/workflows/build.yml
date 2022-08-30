@@ -27,7 +27,7 @@ jobs:
       - name: Build Ebpf
         run: cargo xtask build-ebpf
       - name: Build
-        run: cargo build --verbose --example logger-firewall
+        run: cargo build --verbose --example ci-run
       - name: Run tests
         run: cargo test --verbose
       - name: Run clippy
@@ -35,5 +35,16 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: logger-firewall
-          path: target/debug/examples/logger-firewall
+          name: ci-run
+          path: target/debug/examples/ci-run
+
+  test-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ci-run
+      - name: Run eBPF code
+        run: ./ci-run
