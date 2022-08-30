@@ -22,6 +22,8 @@ jobs:
           override: true
           # TODO: Not sure why rust-src is needed
           components: clippy, rust-src
+      - name: Install bpf-linker
+        run: cargo install bpf-linker
       - name: Build Ebpf
         run: cargo xtask build-ebpf
       - name: Build
