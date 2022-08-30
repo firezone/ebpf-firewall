@@ -66,9 +66,9 @@ jobs:
           #- fedora33-x64
           #- fedora34-x64
           #- fedora35-x64
-          - ubuntu1804-x64
+          #- ubuntu1804-x64
           - ubuntu2004-x64
-          - ubuntu2204-x64
+          #- ubuntu2204-x64
           #- opensuse15-x64
     runs-on: ${{ matrix.platform }}
     needs: build
