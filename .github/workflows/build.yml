@@ -57,18 +57,19 @@ jobs:
           # TODO!
 
           # x64-based
-          - amazonlinux2-x64
-          - centos7-x64
-          - centos8-x64
-          - centos9-x64
-          - debian10-x64
-          - debian11-x64
-          - fedora33-x64
-          - fedora34-x64
-          - fedora35-x64
+          #- amazonlinux2-x64
+          #- centos7-x64
+          #- centos8-x64
+          #- centos9-x64
+          #- debian10-x64
+          #- debian11-x64
+          #- fedora33-x64
+          #- fedora34-x64
+          #- fedora35-x64
           - ubuntu1804-x64
           - ubuntu2004-x64
-          - opensuse15-x64
+          - ubuntu2204-x64
+          #- opensuse15-x64
     runs-on: ${{ matrix.platform }}
     needs: build
     steps:
