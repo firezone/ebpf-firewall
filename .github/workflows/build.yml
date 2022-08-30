@@ -46,8 +46,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ci-run
-      # We can use this to figure out exactly needed permissions
-      - name: Set artifact permissions
-        run: chmod +x ci-run
+      # Using sudo here, we might want to tune it later
+      # There are certain additional limitations for non-sudo users
       - name: Run eBPF code
-        run: ./ci-run
+        run: sudo ./ci-run
