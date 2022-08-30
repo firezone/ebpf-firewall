@@ -46,5 +46,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ci-run
+      # We can use this to figure out exactly needed permissions
+      - name: Set artifact permissions
+        run: chmod +x ci-run
       - name: Run eBPF code
         run: ./ci-run
