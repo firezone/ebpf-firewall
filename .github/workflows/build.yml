@@ -28,7 +28,6 @@ jobs:
       #       ~/.cargo/registry
       #       ~/.cargo/git
       #       target
-      #     # Forcing discard cache for tests
       #     key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       #     restore-keys: |
       #       ${{ runner.os }}-cargo
@@ -41,7 +40,7 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
       - name: Run clippy
-        run: cargo clippy --target -- -D clippy::all
+        run: cargo clippy -- -D clippy::all
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
