@@ -46,7 +46,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ci-run
-      # Using sudo here, we might want to tune it later
-      # There are certain additional limitations for non-sudo users
+      - name: Set permissions
+        run: setcap cap_sys_admin+ep ci-run
       - name: Run eBPF code
-        run: echo "ls" && ls && echo "sudo ls" && sudo ls && sudo ./ci-run
+        run: sudo ./ci-run
