@@ -144,7 +144,7 @@ where
             return Err(Error::InvalidPort);
         }
         let port_range = PortRange {
-            ports: ports,
+            ports,
             action,
             origin: cidr.clone(),
             priority,
