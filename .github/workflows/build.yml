@@ -27,6 +27,13 @@ jobs:
       - name: Build Ebpf
         run: cargo xtask build-ebpf
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --verbose --example logger-firewall
       - name: Run tests
         run: cargo test --verbose
+      - name: Run clippy
+        run: cargo clippy
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: logger-firewall
+          path: target/debug/examples/logger-firewall
