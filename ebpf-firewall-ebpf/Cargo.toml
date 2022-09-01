@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 aya-bpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
-ebpf-firewall-common = { path = "../ebpf-firewall-common" }
+ebpf-firewall-common = { path = "../userspace/ebpf-firewall-common" }
 memoffset = "0.6"
 
 [features]

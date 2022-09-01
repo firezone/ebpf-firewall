@@ -1,5 +1,6 @@
 [workspace]
-members = ["ebpf-firewall", "ebpf-firewall-common", "xtask"]
+members = ["ebpf-firewall", "ebpf-firewall-common"]
+exclude = ["ebpf-firewall-ebpf"]
 
 [patch.crates-io]
 aya = { git = "https://github.com/aya-rs/aya.git", rev = "906c25ff230a707916e2f9e915b490de09312cea" }
