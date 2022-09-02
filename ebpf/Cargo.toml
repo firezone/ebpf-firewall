@@ -14,6 +14,8 @@ wireguard = []
 [[bin]]
 name = "firewall-ebpf"
 path = "src/main.rs"
+test = false
+bench = false
 
 [profile.dev]
 opt-level = 3
