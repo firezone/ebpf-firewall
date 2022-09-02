@@ -43,11 +43,10 @@ jobs:
         working-directory: ./userspace
         run: cargo clippy -- -D clippy::all
       - name: Upload artifact
-        working-directory: ./userspace
         uses: actions/upload-artifact@v3
         with:
           name: ci-run
-          path: target/debug/examples/ci-run
+          path: userspace/target/debug/examples/ci-run
 
   # Keeping these separate for ease of testing in the future
   test-run:
