@@ -10,7 +10,7 @@ use aya::{
     maps::{lpm_trie::LpmTrie, MapRefMut},
     Bpf,
 };
-use ebpf_firewall_common::{Action, ActionStore};
+use firewall_common::{Action, ActionStore};
 
 use crate::{
     as_octet::AsOctets,

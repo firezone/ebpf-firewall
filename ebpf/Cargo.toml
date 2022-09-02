@@ -1,18 +1,18 @@
 [package]
-name = "ebpf-firewall-ebpf"
+name = "firewall-ebpf"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 aya-bpf = { git = "https://github.com/aya-rs/aya", branch = "main" }
-ebpf-firewall-common = { path = "../userspace/ebpf-firewall-common" }
+firewall-common = { path = "../userspace/ebpf-firewall-common" }
 memoffset = "0.6"
 
 [features]
 wireguard = []
 
 [[bin]]
-name = "ebpf-firewall"
+name = "firewall-ebpf"
 path = "src/main.rs"
 
 [profile.dev]
@@ -30,6 +30,3 @@ rpath = false
 lto = true
 panic = "abort"
 codegen-units = 1
-
-[workspace]
-members = []

@@ -7,7 +7,7 @@ This library is composed of 3 crates:
 * `ebpf-firewall-common` code shared between ebpf and user-space
 * `ebpf-firewall` library code
 
-Furthremore, we have an example of how to use the library in `ebpf-firewall/examples/logger-firewall.rs`.
+Furthermore, we have an example of how to use the library in `ebpf-firewall/examples/logger-firewall.rs`.
 
 The library exposes functions to log and block traffic.
 
@@ -48,7 +48,6 @@ cargo build
 ```bash
 cargo run --example logger-firewall -- --iface <interface_name>
 ```
-
 ## Minimum Kernel Requirements (TODO)
 
 * Bounded loops require kernel 5.3 [see here](https://lwn.net/Articles/794934/)

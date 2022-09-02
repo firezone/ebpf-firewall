@@ -15,7 +15,7 @@ use aya::{
     Bpf,
 };
 use bytes::BytesMut;
-use ebpf_firewall_common::PacketLog;
+use firewall_common::PacketLog;
 
 #[cfg(feature = "tokio")]
 use tokio::spawn;

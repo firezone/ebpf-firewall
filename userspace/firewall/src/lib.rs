@@ -10,8 +10,8 @@ use aya::{include_bytes_aligned, Bpf};
 
 pub use cidr::{Ipv4CIDR, Ipv6CIDR};
 pub use classifier::Classifier;
-pub use ebpf_firewall_common::Action;
-use ebpf_firewall_common::GENERIC_PROTO;
+pub use firewall_common::Action;
+use firewall_common::GENERIC_PROTO;
 pub use logger::Logger;
 pub use rule_tracker::RuleTracker;
 
@@ -27,11 +27,11 @@ const ACTION_MAP_IPV6: &str = "ACTION_MAP_IPV6";
 pub fn init(iface: String) -> Result<Bpf> {
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../../target/bpfel-unknown-none/debug/ebpf-firewall"
+        "../../target/artifacts/bpfel-unknown-none/debug/ebpf-firewall"
     ))?;
     #[cfg(not(debug_assertions))]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../../target/bpfel-unknown-none/release/ebpf-firewall"
+        "../../target/artifacts/bpfel-unknown-none/release/ebpf-firewall"
     ))?;
 
     // error adding clsact to the interface if it is already added is harmless

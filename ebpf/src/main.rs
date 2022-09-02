@@ -19,7 +19,7 @@ mod bindings;
 use bindings::iphdr;
 
 use core::mem;
-use ebpf_firewall_common::{ActionStore, PacketLog};
+use firewall_common::{ActionStore, PacketLog};
 use memoffset::offset_of;
 
 use crate::bindings::{ipv6hdr, tcphdr, udphdr};

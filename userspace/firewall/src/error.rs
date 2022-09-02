@@ -11,7 +11,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    RuleEntryError(#[from] ebpf_firewall_common::ActionStoreError),
+    RuleEntryError(#[from] firewall_common::ActionStoreError),
     // Aya's error seems clear enough to just let them bubble up
     #[error(transparent)]
     MapError(#[from] MapError),
