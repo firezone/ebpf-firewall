@@ -27,11 +27,11 @@ const ACTION_MAP_IPV6: &str = "ACTION_MAP_IPV6";
 pub fn init(iface: String) -> Result<Bpf> {
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../target/artifacts/bpfel-unknown-none/debug/ebpf-firewall"
+        "../../target/artifacts/bpfel-unknown-none/debug/firewall-ebpf"
     ))?;
     #[cfg(not(debug_assertions))]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../target/artifacts/bpfel-unknown-none/release/ebpf-firewall"
+        "../../target/artifacts/bpfel-unknown-none/release/firewall-ebpf"
     ))?;
 
     // error adding clsact to the interface if it is already added is harmless
