@@ -31,16 +31,19 @@ jobs:
           restore-keys: |
             ubuntu-18.04-cargo
       - name: Install bpf-linker
+        working-directory: ./userspace
         run: cargo install bpf-linker
-      - name: Build Ebpf
-        run: cargo xtask build-ebpf
       - name: Build
+        working-directory: ./userspace
         run: cargo build --verbose --example ci-run
       - name: Run tests
+        working-directory: ./userspace
         run: cargo test --verbose
       - name: Run clippy
+        working-directory: ./userspace
         run: cargo clippy -- -D clippy::all
       - name: Upload artifact
+        working-directory: ./userspace
         uses: actions/upload-artifact@v3
         with:
           name: ci-run
