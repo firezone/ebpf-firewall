@@ -15,9 +15,8 @@ use firewall_common::{Action, ActionStore};
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
-    Error, ACTION_MAP_IPV4, ACTION_MAP_IPV6,
+    Error, Protocol, Result, ACTION_MAP_IPV4, ACTION_MAP_IPV6,
 };
-use crate::{Protocol, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PortRange<T>

@@ -1,7 +1,6 @@
 #![cfg(feature = "user")]
 
-use crate::action_store::{new_rule, MAX_RULES};
-use crate::{Action, ActionStore};
+use crate::action_store::{new_rule, Action, ActionStore, MAX_RULES};
 use thiserror::Error;
 
 impl ActionStore {

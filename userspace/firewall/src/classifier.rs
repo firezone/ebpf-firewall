@@ -5,8 +5,7 @@ use aya::{
     Bpf, Pod,
 };
 
-use crate::{as_octet::AsOctets, SOURCE_ID_IPV4};
-use crate::{Result, SOURCE_ID_IPV6};
+use crate::{as_octet::AsOctets, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
 
 pub struct Classifier<T: AsOctets>
 where

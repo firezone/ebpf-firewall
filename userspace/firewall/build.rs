@@ -43,6 +43,7 @@ pub fn build_ebpf(
         args.push("--features");
         args.push("wireguard");
     }
+
     if profile == "release" {
         args.push("--release");
     }

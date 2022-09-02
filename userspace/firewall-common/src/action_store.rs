@@ -19,7 +19,7 @@ const PROTO_FIRST_BIT: u64 = 40;
 
 // This are also defined in aya-bpf::bindings
 // Based on these tc-bpf man https://man7.org/linux/man-pages/man8/tc-bpf.8.html
-// We redefine them here as not to depen on aya-bpf in this crate
+// We redefine them here as not to depend on aya-bpf in this crate
 const TC_ACT_OK: i32 = 0;
 const TC_ACT_SHOT: i32 = 2;
 
