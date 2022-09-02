@@ -3,11 +3,7 @@ use std::{path::PathBuf, process::ExitStatus};
 fn main() {
     let wireguard_enabled = std::env::var("CARGO_FEATURE_WIREGUARD").is_ok();
     let endianess = std::env::var("CARGO_CFG_TARGET_ENDIAN").unwrap();
-    let mut out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    for _ in 0..4 {
-        out_dir.pop();
-    }
-    out_dir.push("artifacts");
+    let out_dir = PathBuf::from("../userspace/target/artifacts");
     build_ebpf(wireguard_enabled, out_dir, endianess).expect("Couldn't build ebpf artifact");
 }
 
@@ -15,7 +11,7 @@ fn get_architecture(endianess: String) -> &'static str {
     match &endianess[..] {
         "big" => "bpfeb-unknown-none",
         "little" => "bpfel-unknown-none",
-        _ => panic!("unkown architecture endianess"),
+        _ => panic!("architecture endianess not implemented"),
     }
 }
 
