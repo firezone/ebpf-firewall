@@ -41,7 +41,7 @@ jobs:
         run: cargo test --verbose
       - name: Run clippy
         working-directory: ./userspace
-        run: cargo clippy -- -D clippy::all
+        run: cargo +nightly clippy -- -D clippy::all
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
