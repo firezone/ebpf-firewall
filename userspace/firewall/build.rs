@@ -4,7 +4,11 @@ fn main() {
     let wireguard_enabled = std::env::var("CARGO_FEATURE_WIREGUARD").is_ok();
     let endianess = std::env::var("CARGO_CFG_TARGET_ENDIAN").unwrap();
     let out_dir = PathBuf::from("../userspace/target/artifacts");
-    build_ebpf(wireguard_enabled, out_dir, endianess).expect("Couldn't build ebpf artifact");
+    let exit_status =
+        build_ebpf(wireguard_enabled, out_dir, endianess).expect("Couldn't build ebpf artifact");
+    if !exit_status.success() {
+        panic!("couldn't build ebpf, error: {exit_status}")
+    }
 }
 
 fn get_architecture(endianess: String) -> &'static str {
