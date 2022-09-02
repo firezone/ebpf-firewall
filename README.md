@@ -2,12 +2,16 @@
 
 > Note: This readme is still a work in progress
 
-This library is composed of 3 crates:
-* `ebpf-firewall-ebpf` with the ebpf code
-* `ebpf-firewall-common` code shared between ebpf and user-space
-* `ebpf-firewall` library code
+There are 2 main directories:
+* `ebpf` for ebpf-related crates
+* `userspace` for the user space side of things
 
-Furthermore, we have an example of how to use the library in `ebpf-firewall/examples/logger-firewall.rs`.
+This library is composed of 3 crates:
+* `firewall-ebpf` with the ebpf code
+* `firewall-common` code shared between ebpf and user-space
+* `firewall` library code
+
+Furthermore, we have an example of how to use the library in `userspace/firewall/examples/logger-firewall.rs`.
 
 The library exposes functions to log and block traffic.
 
@@ -17,37 +21,45 @@ The library exposes functions to log and block traffic.
 1. Install a rust nightly toolchain: `rustup install nightly`
 1. Install bpf-linker: `cargo install bpf-linker`
 
-## Build eBPF
-
-```bash
-cargo xtask build-ebpf
-```
-
-To perform a release build you can use the `--release` flag.
-You may also change the target architecture with the `--target` flag
-Furthermore, you want to pass `--feature wireguard` if you want to use the generated ebpf code with a wireguard interface.
-
 ## Regenerate code-bindings
 
+From `userspace`:
+
+```sh
 cargo xtask codegen
+```
 
 ## Build Userspace
 
-Before building userspace library be sure to have built ebpf, the crate includes the bytes from the generated binary object when compling.
-
 To compile:
 
-```bash
-cargo build
+```sh
+cd userspace && cargo build
 ```
-
-> TODO: Add xtask action to build and run example
 
 ## Run example
 
 ```bash
-cargo run --example logger-firewall -- --iface <interface_name>
+cd userspace && cargo run --example logger-firewall -- --iface <interface_name>
 ```
+
+## Run Docker builder
+
+To build using docker:
+* run `./build-docker-builder.sh`
+* run `./build-with-docker.sh`
+
+All flags are passed to `build-with-docker.sh` so if you will run in in wireguard add `--features wireguard` when running the script.
+
+## Run docker tests
+
+After building
+```sh
+cd userspace/docker
+docker compose build
+docker compose up
+```
+
 ## Minimum Kernel Requirements (TODO)
 
 * Bounded loops require kernel 5.3 [see here](https://lwn.net/Articles/794934/)
