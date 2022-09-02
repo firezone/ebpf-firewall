@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Parser;
-use ebpf_firewall::{init, Action, Classifier, Ipv4CIDR, Ipv6CIDR, Logger, Protocol, RuleTracker};
+use firewall::{init, Action, Classifier, Ipv4CIDR, Ipv6CIDR, Logger, Protocol, RuleTracker};
 
 #[derive(Debug, Parser)]
 pub struct Opt {
