@@ -2,18 +2,17 @@ mod test;
 mod user;
 
 #[cfg(feature = "user")]
-pub use user::ActionStoreError;
+pub use user::RuleStoreError;
 
-// 2048 causes a stack overflow, be very careful about this value!
 pub const MAX_RULES: usize = 500;
 // 0xFF should be reserved so this should work forever....
-// We have some free bytes in ActionStore we could as well use a u16 and 0x0100
+// We have some free bytes in RuleStore we could as well use a u16 and 0x0100
 pub const GENERIC_PROTO: u8 = 0xFF;
 const START_MASK: u64 = 0x00000000_0000_FFFF;
 const END_MASK: u64 = 0x00000000_FFFF_0000;
 const END_FIRST_BIT: u64 = 16;
-const PROTO_MASK: u64 = 0x0000_FF00_0000_0000;
-const PROTO_FIRST_BIT: u64 = 40;
+const PROTO_MASK: u64 = 0x0000_00FF_0000_0000;
+const PROTO_FIRST_BIT: u64 = 32;
 
 // This are also defined in aya-bpf::bindings
 // Based on these tc-bpf man https://man7.org/linux/man-pages/man8/tc-bpf.8.html
@@ -32,10 +31,10 @@ pub enum Action {
 #[repr(C)]
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "user", derive(Debug))]
-pub struct ActionStore {
+pub struct RuleStore {
     /// bit 0-15 port range start
     /// bit 16-31 port range end
-    /// bit 40-47 port proto
+    /// bit 32-39 port proto
     /// rest padding
     rules: [u64; MAX_RULES],
     /// Keep this to < usize::MAX pretty please
@@ -58,7 +57,7 @@ fn proto(rule: u64) -> u8 {
     ((rule & PROTO_MASK) >> PROTO_FIRST_BIT) as u8
 }
 
-impl ActionStore {
+impl RuleStore {
     // TODO: Use an enum for Action
     // Here we have 2 problems:
     // Firstly, this is a loop, and bounded loops are supported by kernel 5.3 and onwards
@@ -83,7 +82,7 @@ fn new_rule(start: u16, end: u16, proto: u8) -> u64 {
     ((proto as u64) << PROTO_FIRST_BIT) | ((end as u64) << END_FIRST_BIT) | (start as u64)
 }
 
-impl Default for ActionStore {
+impl Default for RuleStore {
     fn default() -> Self {
         Self {
             rules: [0; MAX_RULES],
@@ -100,4 +99,4 @@ fn contains(rule: u64, val: u16, prot: u8) -> bool {
 }
 
 #[cfg(feature = "user")]
-unsafe impl aya::Pod for ActionStore {}
+unsafe impl aya::Pod for RuleStore {}

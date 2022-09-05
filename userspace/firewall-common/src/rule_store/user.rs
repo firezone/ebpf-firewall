@@ -1,23 +1,23 @@
 #![cfg(feature = "user")]
 
-use crate::action_store::{new_rule, ActionStore, MAX_RULES};
+use crate::rule_store::{new_rule, RuleStore, MAX_RULES};
 use thiserror::Error;
 
-impl ActionStore {
-    pub fn add(&mut self, start: u16, end: u16, proto: u8) -> Result<(), ActionStoreError> {
+impl RuleStore {
+    pub fn add(&mut self, start: u16, end: u16, proto: u8) -> Result<(), RuleStoreError> {
         if (self.rules_len as usize) < MAX_RULES {
             self.rules[self.rules_len as usize] = new_rule(start, end, proto);
             self.rules_len += 1;
             Ok(())
         } else {
-            Err(ActionStoreError::Exhausted)
+            Err(RuleStoreError::Exhausted)
         }
     }
 }
 
 #[non_exhaustive]
 #[derive(Debug, Error)]
-pub enum ActionStoreError {
+pub enum RuleStoreError {
     #[error("maximum number of rules for entry reached")]
     Exhausted,
 }

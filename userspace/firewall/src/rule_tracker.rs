@@ -10,12 +10,12 @@ use aya::{
     maps::{lpm_trie::LpmTrie, MapRefMut},
     Bpf,
 };
-use firewall_common::ActionStore;
+use firewall_common::RuleStore;
 
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
-    Error, Protocol, Result, ACTION_MAP_IPV4, ACTION_MAP_IPV6,
+    Error, Protocol, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -31,7 +31,7 @@ where
     pub proto: Protocol,
 }
 
-fn to_action_store<T>(port_ranges: HashSet<PortRange<T>>) -> ActionStore
+fn to_rule_store<T>(port_ranges: HashSet<PortRange<T>>) -> RuleStore
 where
     T: AsNum + From<T::Num>,
     T: AsOctets,
@@ -40,13 +40,13 @@ where
     let port_ranges = &mut port_ranges.iter().collect::<Vec<_>>()[..];
     resolve_overlap(port_ranges);
 
-    let mut action_store = ActionStore::default();
+    let mut rule_store = RuleStore::default();
     for range in port_ranges {
-        action_store
+        rule_store
             .add(*range.ports.start(), *range.ports.end(), range.proto as u8)
             .unwrap();
     }
-    action_store
+    rule_store
 }
 
 // This is not optimal, but the way we are resolving overlaps here is:
@@ -78,7 +78,7 @@ where
     T::Octets: AsRef<[u8]>,
 {
     rule_map: HashMap<(u32, Cidr<T>), HashSet<PortRange<T>>>,
-    ebpf_store: LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, ActionStore>,
+    ebpf_store: LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>,
 }
 
 impl<T> Debug for RuleTracker<T>
@@ -97,13 +97,13 @@ where
 
 impl RuleTracker<Ipv4Addr> {
     pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, ACTION_MAP_IPV4)
+        Self::new_with_name(bpf, RULE_MAP_IPV4)
     }
 }
 
 impl RuleTracker<Ipv6Addr> {
     pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, ACTION_MAP_IPV6)
+        Self::new_with_name(bpf, RULE_MAP_IPV6)
     }
 }
 
@@ -115,7 +115,7 @@ where
     T::Octets: AsRef<[u8]>,
 {
     fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
-        let ebpf_store: LpmTrie<_, <Cidr<T> as AsKey>::KeySize, ActionStore> =
+        let ebpf_store: LpmTrie<_, <Cidr<T> as AsKey>::KeySize, RuleStore> =
             LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
         Ok(Self {
             rule_map: HashMap::new(),
@@ -151,7 +151,7 @@ where
             .or_insert_with(|| HashSet::from([port_range.clone()]));
 
         self.ebpf_store
-            .insert(&cidr.as_key(id), to_action_store(port_ranges.clone()), 0)?;
+            .insert(&cidr.as_key(id), to_rule_store(port_ranges.clone()), 0)?;
 
         self.reverse_propagate(&cidr, id)?;
         self.propagate(port_range, id)?;
@@ -192,7 +192,7 @@ where
             v.remove(&port_range);
             if !v.is_empty() {
                 self.ebpf_store
-                    .insert(&k_ip.as_key(*k_id), to_action_store(v.clone()), 0)?;
+                    .insert(&k_ip.as_key(*k_id), to_rule_store(v.clone()), 0)?;
             } else {
                 self.ebpf_store.remove(&k_ip.as_key(*k_id))?;
             }
@@ -208,7 +208,7 @@ where
         {
             v.insert(port_range.clone());
             self.ebpf_store
-                .insert(&k_ip.as_key(*k_id), to_action_store(v.clone()), 0)?;
+                .insert(&k_ip.as_key(*k_id), to_rule_store(v.clone()), 0)?;
         }
         Ok(())
     }
@@ -225,7 +225,7 @@ where
             port_ranges.extend(propagated_ranges);
 
             self.ebpf_store
-                .insert(&cidr.as_key(id), to_action_store(port_ranges.clone()), 0)?;
+                .insert(&cidr.as_key(id), to_rule_store(port_ranges.clone()), 0)?;
         }
         Ok(())
     }

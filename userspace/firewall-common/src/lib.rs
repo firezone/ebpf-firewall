@@ -1,11 +1,11 @@
 #![cfg_attr(not(feature = "user"), no_std)]
 
-mod action_store;
+mod rule_store;
 
-pub use action_store::{Action, ActionStore, GENERIC_PROTO};
+pub use rule_store::{Action, RuleStore, GENERIC_PROTO};
 
 #[cfg(feature = "user")]
-pub use action_store::ActionStoreError;
+pub use rule_store::RuleStoreError;
 use strum_macros::EnumCount;
 
 #[repr(C)]

@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::action_store::{end, new_rule, proto, start};
+use crate::rule_store::{end, new_rule, proto, start};
 use test_case::test_case;
 
 #[test_case(10, 20, 6)]
