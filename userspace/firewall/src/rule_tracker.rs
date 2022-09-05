@@ -10,7 +10,7 @@ use aya::{
     maps::{lpm_trie::LpmTrie, MapRefMut},
     Bpf,
 };
-use firewall_common::{Action, ActionStore};
+use firewall_common::ActionStore;
 
 use crate::{
     as_octet::AsOctets,
@@ -26,7 +26,6 @@ where
     T::Octets: AsRef<[u8]>,
 {
     pub ports: RangeInclusive<u16>,
-    pub action: Action,
     pub origin: Cidr<T>,
     pub priority: u32,
     pub proto: Protocol,
@@ -44,12 +43,7 @@ where
     let mut action_store = ActionStore::default();
     for range in port_ranges {
         action_store
-            .add(
-                *range.ports.start(),
-                *range.ports.end(),
-                range.action,
-                range.proto as u8,
-            )
+            .add(*range.ports.start(), *range.ports.end(), range.proto as u8)
             .unwrap();
     }
     action_store
@@ -134,7 +128,6 @@ where
         id: u32,
         cidr: Cidr<T>,
         ports: impl Into<RangeInclusive<u16>>,
-        action: Action,
         priority: u32,
         proto: Protocol,
     ) -> Result<()> {
@@ -144,7 +137,6 @@ where
         }
         let port_range = PortRange {
             ports,
-            action,
             origin: cidr.clone(),
             priority,
             proto,
@@ -171,13 +163,11 @@ where
         id: u32,
         cidr: Cidr<T>,
         ports: impl Into<RangeInclusive<u16>>,
-        action: Action,
         priority: u32,
         proto: Protocol,
     ) -> Result<()> {
         let port_range = PortRange {
             ports: ports.into(),
-            action,
             origin: cidr.clone(),
             priority,
             proto,

@@ -8,6 +8,8 @@ default = []
 user = ["aya", "thiserror"]
 
 [dependencies]
+strum = { version = "0.24", default-features = false }
+strum_macros = { version = "0.24", default-features = false }
 aya = { version = ">=0.11", optional = true }
 thiserror = { version = "1", optional = true }
 

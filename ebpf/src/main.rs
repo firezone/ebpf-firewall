@@ -13,13 +13,14 @@ use aya_bpf::{
     },
     programs::SkBuffContext,
 };
+use strum::EnumCount;
 
 #[allow(clippy::all)]
 mod bindings;
 use bindings::iphdr;
 
 use core::mem;
-use firewall_common::{ActionStore, PacketLog};
+use firewall_common::{ActionStore, ConfigOpt, PacketLog};
 use memoffset::offset_of;
 
 use crate::bindings::{ipv6hdr, tcphdr, udphdr};
@@ -47,6 +48,12 @@ static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
 #[map(name = "ACTION_MAP_IPV6")]
 static mut ACTION_MAP_IPV6: LpmTrie<[u8; 20], ActionStore> =
     LpmTrie::<[u8; 20], ActionStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
+
+// For now this just configs the default action
+// However! We can use this eventually to share more runtime configs
+#[map(name = "CONFIG")]
+static mut CONFIG: HashMap<ConfigOpt, i32> =
+    HashMap::<ConfigOpt, i32>::with_max_entries(ConfigOpt::COUNT as u32, 0);
 
 macro_rules! offsets_off {
     ($parent:path, $($field:tt),+) => {
@@ -164,24 +171,37 @@ fn get_action<const N: usize, const M: usize>(
     prefix_len: u32,
 ) -> i32 {
     let action_store = action_map.get(&Key::new(prefix_len, get_key(group, address)));
-    if let Some(action) = get_store_action(&action_store, port, proto) {
-        return action;
+    let default_action = get_default_action();
+    if is_stored(&action_store, port, proto) {
+        return toggle_action(default_action);
     }
 
     if group.is_some() {
         let action_store = action_map.get(&Key::new(prefix_len, get_key(None, address)));
-        if let Some(action) = get_store_action(&action_store, port, proto) {
-            return action;
+        if is_stored(&action_store, port, proto) {
+            return toggle_action(default_action);
         }
     }
 
-    DEFAULT_ACTION
+    default_action
 }
 
-fn get_store_action(action_store: &Option<&ActionStore>, port: u16, proto: u8) -> Option<i32> {
+fn toggle_action(action: i32) -> i32 {
+    if action == TC_ACT_OK {
+        TC_ACT_SHOT
+    } else {
+        TC_ACT_OK
+    }
+}
+
+fn get_default_action() -> i32 {
+    *unsafe { CONFIG.get(&ConfigOpt::DefaultAction) }.unwrap_or(&DEFAULT_ACTION)
+}
+
+fn is_stored(action_store: &Option<&ActionStore>, port: u16, proto: u8) -> bool {
     action_store
         .map(|store| store.lookup(port, proto))
-        .flatten()
+        .unwrap_or(false)
 }
 
 fn get_key<const N: usize, const M: usize>(group: Option<[u8; 4]>, address: [u8; N]) -> [u8; M] {

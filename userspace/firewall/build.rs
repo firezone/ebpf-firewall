@@ -33,6 +33,8 @@ pub fn build_ebpf(
     let mut args = vec![
         "+nightly",
         "build",
+        "--color",
+        "always",
         "--verbose",
         target.as_str(),
         "-Z",

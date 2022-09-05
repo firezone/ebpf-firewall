@@ -12,8 +12,6 @@ pub const GENERIC_PROTO: u8 = 0xFF;
 const START_MASK: u64 = 0x00000000_0000_FFFF;
 const END_MASK: u64 = 0x00000000_FFFF_0000;
 const END_FIRST_BIT: u64 = 16;
-const ACTION_BIT: u64 = 32;
-const ACTION_MASK: u64 = 0x0000_00FF_0000_0000;
 const PROTO_MASK: u64 = 0x0000_FF00_0000_0000;
 const PROTO_FIRST_BIT: u64 = 40;
 
@@ -37,7 +35,6 @@ pub enum Action {
 pub struct ActionStore {
     /// bit 0-15 port range start
     /// bit 16-31 port range end
-    /// bit 32-39 action
     /// bit 40-47 port proto
     /// rest padding
     rules: [u64; MAX_RULES],
@@ -57,11 +54,6 @@ fn end(rule: u64) -> u16 {
 }
 
 #[inline]
-fn action(rule: u64) -> i32 {
-    ((rule & ACTION_MASK) >> ACTION_BIT) as i32
-}
-
-#[inline]
 fn proto(rule: u64) -> u8 {
     ((rule & PROTO_MASK) >> PROTO_FIRST_BIT) as u8
 }
@@ -73,25 +65,22 @@ impl ActionStore {
     // This can be helped, sometimes, by using the aya-linker flag --unroll-loops
     // Furthemore, this can limit the number of rules due to too many jumps or insts for the verifier
     // we need to revisit the loop, maybe do some unrolling ourselves or look for another way
-    pub fn lookup(&self, val: u16, proto: u8) -> Option<i32> {
+    pub fn lookup(&self, val: u16, proto: u8) -> bool {
         // TODO: We can optimize by sorting
         for rule in self.rules.iter().take(self.rules_len as usize) {
             if contains(*rule, val, proto) {
-                return Some(action(*rule));
+                return true;
             }
         }
 
-        None
+        false
     }
 }
 
 #[cfg(any(test, feature = "user"))]
 #[inline]
-fn new_rule(start: u16, end: u16, action: Action, proto: u8) -> u64 {
-    ((proto as u64) << PROTO_FIRST_BIT)
-        | ((action as u64) << ACTION_BIT)
-        | ((end as u64) << END_FIRST_BIT)
-        | (start as u64)
+fn new_rule(start: u16, end: u16, proto: u8) -> u64 {
+    ((proto as u64) << PROTO_FIRST_BIT) | ((end as u64) << END_FIRST_BIT) | (start as u64)
 }
 
 impl Default for ActionStore {

@@ -6,6 +6,7 @@ pub use action_store::{Action, ActionStore, GENERIC_PROTO};
 
 #[cfg(feature = "user")]
 pub use action_store::ActionStoreError;
+use strum_macros::EnumCount;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -18,6 +19,16 @@ pub struct PacketLog {
     pub proto: u8,
     pub version: u8,
 }
+
+#[repr(u8)]
+#[derive(Clone, Copy, EnumCount)]
+pub enum ConfigOpt {
+    DefaultAction = 0,
+}
+
+// Safety ConfigOpt is repr(u8)
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for ConfigOpt {}
 
 #[cfg(feature = "user")]
 impl std::fmt::Display for PacketLog {
