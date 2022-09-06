@@ -30,3 +30,4 @@ tokio = { version = "1.18", default-features = false, features = [
 ] }
 anyhow = "1"
 libc = "0.2"
+test-case = "2.2"

@@ -1,3 +1,6 @@
+mod rule_trie;
+mod test;
+
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -17,6 +20,7 @@ use crate::{
     cidr::{AsKey, AsNum, Cidr},
     Error, Protocol, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
+use rule_trie::RuleTrie;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PortRange<T>
@@ -27,7 +31,6 @@ where
 {
     pub ports: RangeInclusive<u16>,
     pub origin: Cidr<T>,
-    pub priority: u32,
     pub proto: Protocol,
 }
 
@@ -63,30 +66,31 @@ where
         (
             p.origin.prefix(),
             !p.ports.contains(&0),
-            p.priority,
             usize::MAX - p.ports.len(),
         )
     });
     port_ranges.reverse();
 }
 
-pub struct RuleTracker<T>
+pub struct RuleTracker<T, U>
 where
     T: AsNum + From<T::Num>,
     Cidr<T>: AsKey,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
+    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
 {
     rule_map: HashMap<(u32, Cidr<T>), HashSet<PortRange<T>>>,
-    ebpf_store: LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>,
+    ebpf_store: U, //LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>,
 }
 
-impl<T> Debug for RuleTracker<T>
+impl<T, U> Debug for RuleTracker<T, U>
 where
     T: AsNum + From<T::Num> + Debug,
     Cidr<T>: AsKey,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
+    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuleTracker")
@@ -95,19 +99,19 @@ where
     }
 }
 
-impl RuleTracker<Ipv4Addr> {
+impl RuleTracker<Ipv4Addr, LpmTrie<MapRefMut, [u8; 8], RuleStore>> {
     pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV4)
     }
 }
 
-impl RuleTracker<Ipv6Addr> {
+impl RuleTracker<Ipv6Addr, LpmTrie<MapRefMut, [u8; 20], RuleStore>> {
     pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV6)
     }
 }
 
-impl<T> RuleTracker<T>
+impl<T> RuleTracker<T, LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>>
 where
     T: AsNum + From<T::Num> + Eq + Hash + Clone,
     Cidr<T>: AsKey,
@@ -122,13 +126,21 @@ where
             ebpf_store,
         })
     }
+}
 
+impl<T, U> RuleTracker<T, U>
+where
+    T: AsNum + From<T::Num> + Eq + Hash + Clone,
+    Cidr<T>: AsKey,
+    T: AsOctets,
+    T::Octets: AsRef<[u8]>,
+    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+{
     pub fn add_rule(
         &mut self,
         id: u32,
         cidr: Cidr<T>,
         ports: impl Into<RangeInclusive<u16>>,
-        priority: u32,
         proto: Protocol,
     ) -> Result<()> {
         let ports = ports.into();
@@ -138,7 +150,6 @@ where
         let port_range = PortRange {
             ports,
             origin: cidr.clone(),
-            priority,
             proto,
         };
 
@@ -151,7 +162,7 @@ where
             .or_insert_with(|| HashSet::from([port_range.clone()]));
 
         self.ebpf_store
-            .insert(&cidr.as_key(id), to_rule_store(port_ranges.clone()), 0)?;
+            .insert(&cidr.as_key(id), to_rule_store(port_ranges.clone()))?;
 
         self.reverse_propagate(&cidr, id)?;
         self.propagate(port_range, id)?;
@@ -163,13 +174,11 @@ where
         id: u32,
         cidr: Cidr<T>,
         ports: impl Into<RangeInclusive<u16>>,
-        priority: u32,
         proto: Protocol,
     ) -> Result<()> {
         let port_range = PortRange {
             ports: ports.into(),
             origin: cidr.clone(),
-            priority,
             proto,
         };
         if let std::collections::hash_map::Entry::Occupied(_) =
@@ -192,7 +201,7 @@ where
             v.remove(&port_range);
             if !v.is_empty() {
                 self.ebpf_store
-                    .insert(&k_ip.as_key(*k_id), to_rule_store(v.clone()), 0)?;
+                    .insert(&k_ip.as_key(*k_id), to_rule_store(v.clone()))?;
             } else {
                 self.ebpf_store.remove(&k_ip.as_key(*k_id))?;
             }
@@ -208,7 +217,7 @@ where
         {
             v.insert(port_range.clone());
             self.ebpf_store
-                .insert(&k_ip.as_key(*k_id), to_rule_store(v.clone()), 0)?;
+                .insert(&k_ip.as_key(*k_id), to_rule_store(v.clone()))?;
         }
         Ok(())
     }
@@ -225,7 +234,7 @@ where
             port_ranges.extend(propagated_ranges);
 
             self.ebpf_store
-                .insert(&cidr.as_key(id), to_rule_store(port_ranges.clone()), 0)?;
+                .insert(&cidr.as_key(id), to_rule_store(port_ranges.clone()))?;
         }
         Ok(())
     }

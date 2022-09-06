@@ -139,3 +139,26 @@ impl AsKey for Cidr<Ipv6Addr> {
         self.key(id)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{net::Ipv6Addr, str::FromStr};
+
+    use crate::Ipv6CIDR;
+
+    #[test]
+    fn contains_works_v6() {
+        let cidr_64 = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64);
+        let cidr_96 = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96);
+        let cidr_128 = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128);
+        assert!(cidr_64.contains(&cidr_64));
+        assert!(cidr_64.contains(&cidr_96));
+        assert!(cidr_64.contains(&cidr_128));
+        assert!(!cidr_96.contains(&cidr_64));
+        assert!(cidr_96.contains(&cidr_96));
+        assert!(cidr_96.contains(&cidr_128));
+        assert!(!cidr_128.contains(&cidr_64));
+        assert!(!cidr_128.contains(&cidr_96));
+        assert!(cidr_128.contains(&cidr_128));
+    }
+}
