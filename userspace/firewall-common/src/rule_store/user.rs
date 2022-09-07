@@ -1,17 +1,45 @@
 #![cfg(feature = "user")]
 
-use crate::rule_store::{new_rule, RuleStore, MAX_RULES};
+use crate::rule_store::{RuleStore, MAX_RULES};
 use thiserror::Error;
 
 impl RuleStore {
-    pub fn add(&mut self, start: u16, end: u16, proto: u8) -> Result<(), RuleStoreError> {
-        if (self.rules_len as usize) < MAX_RULES {
-            self.rules[self.rules_len as usize] = new_rule(start, end, proto);
-            self.rules_len += 1;
-            Ok(())
+    pub fn new(ports: &[(u16, u16)]) -> Result<RuleStore, RuleStoreError> {
+        if (ports.len() as usize) <= MAX_RULES {
+            if Self::wellformed(ports) {
+                let mut rules = [(0, 0); MAX_RULES];
+                let rule_len = ports.len();
+                rules[..rule_len].copy_from_slice(ports);
+                Ok(RuleStore {
+                    rules,
+                    rules_len: (rule_len as u32),
+                })
+            } else {
+                Err(RuleStoreError::MalFormed)
+            }
         } else {
             Err(RuleStoreError::Exhausted)
         }
+    }
+
+    fn wellformed(ports: &[(u16, u16)]) -> bool {
+        // is_sorted is not stable yet
+        let mut last_start = None;
+        let mut last_end = None;
+        let mut sorted = true;
+        let mut interval = true;
+        let mut non_overlaping = true;
+        for (a, b) in ports {
+            if last_start.is_none() {
+                last_start = Some(a);
+            }
+            sorted = sorted && a >= last_start.unwrap();
+            interval = interval && b >= a;
+            non_overlaping = non_overlaping && (last_end.is_none() || last_end.unwrap() < a);
+            last_start = Some(a);
+            last_end = Some(b);
+        }
+        sorted && interval && non_overlaping
     }
 }
 
@@ -20,4 +48,6 @@ impl RuleStore {
 pub enum RuleStoreError {
     #[error("maximum number of rules for entry reached")]
     Exhausted,
+    #[error("overlapping rules or not sorted")]
+    MalFormed,
 }

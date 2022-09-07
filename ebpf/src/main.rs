@@ -38,16 +38,16 @@ static mut SOURCE_ID_IPV4: HashMap<[u8; 4], u32> =
     HashMap::<[u8; 4], u32>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV4")]
-static mut RULE_MAP_IPV4: LpmTrie<[u8; 8], RuleStore> =
-    LpmTrie::<[u8; 8], RuleStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
+static mut RULE_MAP_IPV4: LpmTrie<[u8; 9], RuleStore> =
+    LpmTrie::<[u8; 9], RuleStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
 
 #[map(name = "SOURCE_ID_IPV6")]
 static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
     HashMap::<[u8; 16], u32>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV6")]
-static mut RULE_MAP_IPV6: LpmTrie<[u8; 20], RuleStore> =
-    LpmTrie::<[u8; 20], RuleStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
+static mut RULE_MAP_IPV6: LpmTrie<[u8; 21], RuleStore> =
+    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
 
 // For now this just configs the default action
 // However! We can use this eventually to share more runtime configs
@@ -89,16 +89,10 @@ unsafe fn process<const N: usize, const M: usize>(
     source_map: &HashMap<[u8; N], u32>,
     rule_map: &LpmTrie<[u8; M], RuleStore>,
 ) -> Result<i32, i64> {
-    let prefix_len = match version {
-        6 => 160,
-        4 => 64,
-        _ => unreachable!("Should only call with valid packet"),
-    };
-
     let (source, dest, proto) = load_ntw_headers(&ctx, version)?;
     let port = get_port(&ctx, version, proto)?;
     let class = source_class(source_map, source);
-    let action = get_action(class, dest, rule_map, port, proto, prefix_len);
+    let action = get_action(class, dest, rule_map, port, proto);
     let source = as_log_array(source);
     let dest = as_log_array(dest);
     let log_entry = PacketLog {
@@ -168,17 +162,17 @@ fn get_action<const N: usize, const M: usize>(
     rule_map: &LpmTrie<[u8; M], RuleStore>,
     port: u16,
     proto: u8,
-    prefix_len: u32,
 ) -> i32 {
-    let rule_store = rule_map.get(&Key::new(prefix_len, get_key(group, address)));
+    let proto = if proto == 0 { TCP } else { proto };
+    let rule_store = rule_map.get(&Key::new((M * 8) as u32, get_key(group, proto, address)));
     let default_action = get_default_action();
-    if is_stored(&rule_store, port, proto) {
+    if is_stored(&rule_store, port) {
         return toggle_action(default_action);
     }
 
     if group.is_some() {
-        let rule_store = rule_map.get(&Key::new(prefix_len, get_key(None, address)));
-        if is_stored(&rule_store, port, proto) {
+        let rule_store = rule_map.get(&Key::new((M * 8) as u32, get_key(None, proto, address)));
+        if is_stored(&rule_store, port) {
             return toggle_action(default_action);
         }
     }
@@ -198,18 +192,22 @@ fn get_default_action() -> i32 {
     *unsafe { CONFIG.get(&ConfigOpt::DefaultAction) }.unwrap_or(&DEFAULT_ACTION)
 }
 
-fn is_stored(rule_store: &Option<&RuleStore>, port: u16, proto: u8) -> bool {
-    rule_store
-        .map(|store| store.lookup(port, proto))
-        .unwrap_or(false)
+fn is_stored(rule_store: &Option<&RuleStore>, port: u16) -> bool {
+    rule_store.map(|store| store.lookup(port)).unwrap_or(false)
 }
 
-fn get_key<const N: usize, const M: usize>(group: Option<[u8; 4]>, address: [u8; N]) -> [u8; M] {
+fn get_key<const N: usize, const M: usize>(
+    group: Option<[u8; 4]>,
+    proto: u8,
+    address: [u8; N],
+) -> [u8; M] {
     // TODO: Could use MaybeUninit
     let group = group.unwrap_or_default();
     let mut res = [0; M];
-    let (res_group, res_address) = res.split_at_mut(4);
+    let (res_left, res_address) = res.split_at_mut(5);
+    let (res_group, res_proto) = res_left.split_at_mut(4);
     res_group.copy_from_slice(&group);
+    res_proto[0] = proto;
     res_address.copy_from_slice(&address);
     res
 }

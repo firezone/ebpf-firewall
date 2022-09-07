@@ -89,10 +89,6 @@ where
         }
     }
 
-    pub(crate) fn prefix(&self) -> u8 {
-        self.prefix
-    }
-
     fn normalize(ip: T, prefix: u8) -> T {
         T::from(ip.as_num() & Self::mask_prefix(prefix))
     }
@@ -110,11 +106,13 @@ where
             && ((self.ip.as_num() & self.mask()) == (k.ip.as_num() & self.mask()))
     }
 
-    fn key<const N: usize>(&self, id: u32) -> Key<[u8; N]> {
+    fn key<const N: usize>(&self, id: u32, proto: u8) -> Key<[u8; N]> {
         let key_id = id.to_be_bytes();
         let key_cidr = self.ip.as_octets();
         let mut key_data = [0u8; N];
-        let (id, cidr) = key_data.split_at_mut(4);
+        let (left_key_data, cidr) = key_data.split_at_mut(5);
+        let (id, prot) = left_key_data.split_at_mut(4);
+        prot[0] = proto;
         id.copy_from_slice(&key_id);
         cidr.copy_from_slice(key_cidr.as_ref());
         Key::new(u32::from(self.prefix) + 32, key_data)
@@ -123,20 +121,20 @@ where
 
 pub trait AsKey {
     type KeySize: Pod;
-    fn as_key(&self, id: u32) -> Key<Self::KeySize>;
+    fn as_key(&self, id: u32, proto: u8) -> Key<Self::KeySize>;
 }
 
 impl AsKey for Cidr<Ipv4Addr> {
-    type KeySize = [u8; 8];
-    fn as_key(&self, id: u32) -> Key<Self::KeySize> {
-        self.key(id)
+    type KeySize = [u8; 9];
+    fn as_key(&self, id: u32, proto: u8) -> Key<Self::KeySize> {
+        self.key(id, proto)
     }
 }
 
 impl AsKey for Cidr<Ipv6Addr> {
-    type KeySize = [u8; 20];
-    fn as_key(&self, id: u32) -> Key<Self::KeySize> {
-        self.key(id)
+    type KeySize = [u8; 21];
+    fn as_key(&self, id: u32, proto: u8) -> Key<Self::KeySize> {
+        self.key(id, proto)
     }
 }
 
