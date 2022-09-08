@@ -39,7 +39,7 @@ static mut SOURCE_ID_IPV4: HashMap<[u8; 4], u32> =
 
 #[map(name = "RULE_MAP_IPV4")]
 static mut RULE_MAP_IPV4: LpmTrie<[u8; 9], RuleStore> =
-    LpmTrie::<[u8; 9], RuleStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
+    LpmTrie::<[u8; 9], RuleStore>::with_max_entries(10_000, BPF_F_NO_PREALLOC);
 
 #[map(name = "SOURCE_ID_IPV6")]
 static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
@@ -47,7 +47,7 @@ static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
 
 #[map(name = "RULE_MAP_IPV6")]
 static mut RULE_MAP_IPV6: LpmTrie<[u8; 21], RuleStore> =
-    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(100_000, BPF_F_NO_PREALLOC);
+    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(10_000, BPF_F_NO_PREALLOC);
 
 // For now this just configs the default action
 // However! We can use this eventually to share more runtime configs
