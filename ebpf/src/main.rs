@@ -11,7 +11,7 @@ use aya_bpf::{
         lpm_trie::{Key, LpmTrie},
         HashMap, PerfEventArray,
     },
-    programs::SkBuffContext,
+    programs::TcContext,
 };
 use strum::EnumCount;
 
@@ -62,7 +62,7 @@ macro_rules! offsets_off {
 }
 
 #[classifier(name = "ebpf_firewall")]
-pub fn ebpf_firewall(ctx: SkBuffContext) -> i32 {
+pub fn ebpf_firewall(ctx: TcContext) -> i32 {
     match unsafe { try_ebpf_firewall(ctx) } {
         Ok(ret) => ret,
         Err(_) => TC_ACT_SHOT,
@@ -73,7 +73,7 @@ fn version(hd: u8) -> u8 {
     (hd & 0xf0) >> 4
 }
 
-unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
+unsafe fn try_ebpf_firewall(ctx: TcContext) -> Result<i32, i64> {
     // Endianess??
     let version = version(ctx.load(ETH_HDR_LEN)?);
     match version {
@@ -84,7 +84,7 @@ unsafe fn try_ebpf_firewall(ctx: SkBuffContext) -> Result<i32, i64> {
 }
 
 unsafe fn process<const N: usize, const M: usize>(
-    ctx: SkBuffContext,
+    ctx: TcContext,
     version: u8,
     source_map: &HashMap<[u8; N], u32>,
     rule_map: &LpmTrie<[u8; M], RuleStore>,
@@ -107,12 +107,12 @@ unsafe fn process<const N: usize, const M: usize>(
     Ok(action)
 }
 
-fn load_sk_buff<T>(ctx: &SkBuffContext, offset: usize) -> Result<T, i64> {
+fn load_sk_buff<T>(ctx: &TcContext, offset: usize) -> Result<T, i64> {
     ctx.load::<T>(ETH_HDR_LEN + offset)
 }
 
 fn load_ntw_headers<const N: usize>(
-    ctx: &SkBuffContext,
+    ctx: &TcContext,
     version: u8,
 ) -> Result<([u8; N], [u8; N], u8), i64> {
     let (source_off, dest_off, proto_off) = match version {
@@ -126,7 +126,7 @@ fn load_ntw_headers<const N: usize>(
     Ok((source, dest, next_header))
 }
 
-fn get_port(ctx: &SkBuffContext, version: u8, proto: u8) -> Result<u16, i64> {
+fn get_port(ctx: &TcContext, version: u8, proto: u8) -> Result<u16, i64> {
     let ip_len = match version {
         6 => IPV6_HDR_LEN,
         4 => IP_HDR_LEN,
