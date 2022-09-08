@@ -59,12 +59,10 @@ pub struct RuleStore {
 }
 
 impl RuleStore {
-    // TODO: Use an enum for Action
-    // Here we have 2 problems:
-    // Firstly, this is a loop, and bounded loops are supported by kernel 5.3 and onwards
-    // This can be helped, sometimes, by using the aya-linker flag --unroll-loops
-    // Furthemore, this can limit the number of rules due to too many jumps or insts for the verifier
-    // we need to revisit the loop, maybe do some unrolling ourselves or look for another way
+    // TODO: We need to check if this works in older kernels.
+    // If it doesn't we need to use --unroll-loop.
+    // We might need to refactor the loop to explicitly use `MAX_ITER`
+    // Note: MAX_ITER is a most 16
     pub fn lookup(&self, val: u16) -> bool {
         // 0 means all ports
         if self.rules_len > 0 {

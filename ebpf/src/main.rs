@@ -163,7 +163,7 @@ fn get_action<const N: usize, const M: usize>(
     port: u16,
     proto: u8,
 ) -> i32 {
-    let proto = if proto == 0 { TCP } else { proto };
+    let proto = if port == 0 { TCP } else { proto };
     let rule_store = rule_map.get(&Key::new((M * 8) as u32, get_key(group, proto, address)));
     let default_action = get_default_action();
     if is_stored(&rule_store, port) {

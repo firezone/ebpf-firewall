@@ -97,6 +97,14 @@ async fn main() -> Result<(), anyhow::Error> {
         Protocol::Generic,
     )?;
 
+    //142.251.134.78
+    rule_tracker.add_rule(
+        0,
+        Ipv4CIDR::new(Ipv4Addr::new(142, 251, 134, 78), 32),
+        0..=0,
+        Protocol::Generic,
+    )?;
+
     let mut logger = Logger::new(&bpf)?;
     logger.init()?;
     signal::ctrl_c().await?;

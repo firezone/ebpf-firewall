@@ -26,6 +26,23 @@ fn add_rule(port: u16, is_contained: bool) {
     assert_eq!(rule_store.lookup(port), is_contained);
 }
 
+#[test_case(4, true)]
+#[test_case(5, true)]
+#[test_case(3, true)]
+#[test_case(6, true)]
+#[test_case(7, true)]
+#[test_case(21, true)]
+#[test_case(28, true)]
+#[test_case(87, true)]
+#[test_case(50, true)]
+#[test_case(10, true)]
+#[test_case(6000, true)]
+#[test_case(8000, true)]
+fn port_0_matches_all(port: u16, is_contained: bool) {
+    let rule_store = RuleStore::new(&[(0, 0)]).unwrap();
+    assert_eq!(rule_store.lookup(port), is_contained);
+}
+
 #[test]
 fn test_exhausted_error() {
     let ports: Vec<_> = (0..(MAX_RULES + 1) as u16).map(|i| (i, i)).collect();
