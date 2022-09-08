@@ -47,7 +47,7 @@ impl RuleStore {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum RuleStoreError {
     #[error("maximum number of rules for entry reached")]
     Exhausted,
