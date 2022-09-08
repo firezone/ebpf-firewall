@@ -4,7 +4,7 @@ mod user;
 #[cfg(feature = "user")]
 pub use user::RuleStoreError;
 
-pub const MAX_RULES: usize = 65_535;
+pub const MAX_RULES: usize = 5000;
 #[cfg(not(feature = "user"))]
 const MAX_ITER: u32 = MAX_RULES.ilog2() + 1;
 // 0xFF should be reserved so this should work forever....
