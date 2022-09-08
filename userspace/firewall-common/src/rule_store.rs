@@ -98,7 +98,6 @@ impl RuleStore {
             } else {
                 return false;
             };
-            // Can't do unsafe since ebpf verifier doesn't like it.
             let cmp = start(r) <= val;
             if cmp {
                 left = mid + 1;
