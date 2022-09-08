@@ -1,5 +1,5 @@
 #![cfg_attr(not(feature = "user"), no_std)]
-
+#![cfg_attr(not(feature = "user"), feature(int_log))]
 mod rule_store;
 
 pub use rule_store::{Action, RuleStore, GENERIC_PROTO};

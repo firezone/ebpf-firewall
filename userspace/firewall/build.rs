@@ -1,6 +1,8 @@
 use std::{path::PathBuf, process::ExitStatus};
 
 fn main() {
+    println!("cargo:rerun-if-changed=../../ebpf/");
+    println!("cargo:rerun-if-changed=../firewall-common/src/");
     let wireguard_enabled = std::env::var("CARGO_FEATURE_WIREGUARD").is_ok();
     let endianess = std::env::var("CARGO_CFG_TARGET_ENDIAN").unwrap();
     let profile = std::env::var("PROFILE").unwrap();

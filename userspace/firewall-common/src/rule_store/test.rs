@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use crate::{RuleStore, RuleStoreError};
+use crate::{
+    rule_store::{end, new_rule, start},
+    RuleStore, RuleStoreError,
+};
 use test_case::test_case;
 
 use super::MAX_RULES;
@@ -29,4 +32,20 @@ fn test_exhausted_error() {
     let rule_store = RuleStore::new(&ports[..]);
     assert!(rule_store.is_err());
     assert_eq!(rule_store.unwrap_err(), RuleStoreError::Exhausted);
+}
+
+#[test]
+fn test_struct_alignment() {
+    assert_eq!(core::mem::size_of::<RuleStore>(), (MAX_RULES * 4) + 4);
+}
+
+#[test_case(10, 20)]
+#[test_case(100, 240)]
+#[test_case(0, 65535)]
+#[test_case(1111, 11111)]
+#[test_case(90, 445)]
+fn test_well_formed_rules(port_start: u16, port_end: u16) {
+    let rule = new_rule(port_start, port_end);
+    assert_eq!(start(rule), port_start);
+    assert_eq!(end(rule), port_end);
 }

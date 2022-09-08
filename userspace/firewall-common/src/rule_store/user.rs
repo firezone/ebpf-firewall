@@ -3,13 +3,16 @@
 use crate::rule_store::{RuleStore, MAX_RULES};
 use thiserror::Error;
 
+use super::new_rule;
+
 impl RuleStore {
     pub fn new(ports: &[(u16, u16)]) -> Result<RuleStore, RuleStoreError> {
         if (ports.len() as usize) <= MAX_RULES {
             if Self::wellformed(ports) {
-                let mut rules = [(0, 0); MAX_RULES];
+                let mut rules = [0u32; MAX_RULES];
                 let rule_len = ports.len();
-                rules[..rule_len].copy_from_slice(ports);
+                rules[..rule_len]
+                    .copy_from_slice(&ports.iter().map(|p| new_rule(p.0, p.1)).collect::<Vec<_>>());
                 Ok(RuleStore {
                     rules,
                     rules_len: (rule_len as u32),
