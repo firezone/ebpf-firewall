@@ -11,7 +11,7 @@ const MAX_ITER: u32 = MAX_RULES.ilog2() + 1;
 // We have some free bytes in RuleStore we could as well use a u16 and 0x0100
 pub const GENERIC_PROTO: u8 = 0xFF;
 
-// This are also defined in aya-bpf::bindings
+// These are also defined in aya-bpf::bindings
 // Based on these tc-bpf man https://man7.org/linux/man-pages/man8/tc-bpf.8.html
 // We redefine them here as not to depend on aya-bpf in this crate
 const TC_ACT_OK: i32 = 0;
