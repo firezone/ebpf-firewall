@@ -81,7 +81,7 @@ where
     U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
 {
     rule_map: HashMap<(u32, Protocol, Cidr<T>), HashSet<PortRange<T>>>,
-    ebpf_store: U, //LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>,
+    ebpf_store: U,
 }
 
 impl<T, U> Debug for RuleTracker<T, U>
