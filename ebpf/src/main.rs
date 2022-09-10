@@ -167,20 +167,20 @@ fn get_action<const N: usize, const M: usize>(
     let rule_store = rule_map.get(&Key::new((M * 8) as u32, get_key(group, proto, address)));
     let default_action = get_default_action();
     if is_stored(&rule_store, port) {
-        return toggle_action(default_action);
+        return invert_action(default_action);
     }
 
     if group.is_some() {
         let rule_store = rule_map.get(&Key::new((M * 8) as u32, get_key(None, proto, address)));
         if is_stored(&rule_store, port) {
-            return toggle_action(default_action);
+            return invert_action(default_action);
         }
     }
 
     default_action
 }
 
-fn toggle_action(action: i32) -> i32 {
+fn invert_action(action: i32) -> i32 {
     if action == TC_ACT_OK {
         TC_ACT_SHOT
     } else {

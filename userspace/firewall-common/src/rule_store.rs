@@ -118,11 +118,12 @@ impl RuleStore {
         if left == 0 {
             false
         } else {
-            if left >= MAX_RULES {
+            let indx = left - 1;
+            if indx >= MAX_RULES {
                 return false;
             }
             // SAFETY: Again, we are already bound checking
-            end(*unsafe { self.rules.get_unchecked(left - 1) }) >= val
+            end(*unsafe { self.rules.get_unchecked(indx) }) >= val
         }
     }
 }
