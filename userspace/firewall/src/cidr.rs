@@ -1,16 +1,20 @@
 use std::{
-    net::{Ipv4Addr, Ipv6Addr},
+    fmt::Debug,
+    net::{AddrParseError, Ipv4Addr, Ipv6Addr},
+    num::ParseIntError,
     ops::{BitAnd, Not, Shr},
+    str::FromStr,
 };
 
 use aya::{maps::lpm_trie::Key, Pod};
+use thiserror::Error;
 
 use crate::as_octet::AsOctets;
 
 pub type Ipv4CIDR = Cidr<Ipv4Addr>;
 pub type Ipv6CIDR = Cidr<Ipv6Addr>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Cidr<T>
 where
     T: AsNum + From<T::Num>,
@@ -19,6 +23,17 @@ where
 {
     ip: T,
     prefix: u8,
+}
+
+impl<T> Debug for Cidr<T>
+where
+    T: AsNum + From<T::Num> + Debug,
+    T: AsOctets,
+    T::Octets: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}/{:?}", self.ip, self.prefix)
+    }
 }
 
 pub trait AsNum {
@@ -75,6 +90,40 @@ impl AsNum for Ipv6Addr {
     }
 }
 
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum CidrParseError {
+    #[error("Invalid CIDR format")]
+    InvalidFormat,
+    #[error("Invalid address format")]
+    IpError(#[from] AddrParseError),
+    #[error("Invalid prefix format")]
+    PrefixError(#[from] ParseIntError),
+}
+
+impl<T> FromStr for Cidr<T>
+where
+    T: AsNum + From<T::Num>,
+    T: AsOctets,
+    T::Octets: AsRef<[u8]>,
+    T: FromStr<Err = AddrParseError>,
+{
+    type Err = CidrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let try_cidr: Vec<&str> = s.split('/').collect();
+        if try_cidr.len() != 2 {
+            return Err(CidrParseError::InvalidFormat);
+        }
+
+        Ok(Self {
+            // We can unwrap here because we just checked try_cidr.len() == 2
+            ip: try_cidr.first().unwrap().parse()?,
+            // We can unwrap here because we just checked try_cidr.len() == 2
+            prefix: try_cidr.get(1).unwrap().parse()?,
+        })
+    }
+}
+
 impl<T> Cidr<T>
 where
     T: AsNum + From<T::Num>,
@@ -87,10 +136,6 @@ where
             ip: Self::normalize(ip, prefix),
             prefix,
         }
-    }
-
-    pub(crate) fn prefix(&self) -> u8 {
-        self.prefix
     }
 
     fn normalize(ip: T, prefix: u8) -> T {
@@ -110,11 +155,13 @@ where
             && ((self.ip.as_num() & self.mask()) == (k.ip.as_num() & self.mask()))
     }
 
-    fn key<const N: usize>(&self, id: u32) -> Key<[u8; N]> {
+    fn key<const N: usize>(&self, id: u32, proto: u8) -> Key<[u8; N]> {
         let key_id = id.to_be_bytes();
         let key_cidr = self.ip.as_octets();
         let mut key_data = [0u8; N];
-        let (id, cidr) = key_data.split_at_mut(4);
+        let (left_key_data, cidr) = key_data.split_at_mut(5);
+        let (id, prot) = left_key_data.split_at_mut(4);
+        prot[0] = proto;
         id.copy_from_slice(&key_id);
         cidr.copy_from_slice(key_cidr.as_ref());
         Key::new(u32::from(self.prefix) + 32, key_data)
@@ -123,19 +170,41 @@ where
 
 pub trait AsKey {
     type KeySize: Pod;
-    fn as_key(&self, id: u32) -> Key<Self::KeySize>;
+    fn as_key(&self, id: u32, proto: u8) -> Key<Self::KeySize>;
 }
 
 impl AsKey for Cidr<Ipv4Addr> {
-    type KeySize = [u8; 8];
-    fn as_key(&self, id: u32) -> Key<Self::KeySize> {
-        self.key(id)
+    type KeySize = [u8; 9];
+    fn as_key(&self, id: u32, proto: u8) -> Key<Self::KeySize> {
+        self.key(id, proto)
     }
 }
 
 impl AsKey for Cidr<Ipv6Addr> {
-    type KeySize = [u8; 20];
-    fn as_key(&self, id: u32) -> Key<Self::KeySize> {
-        self.key(id)
+    type KeySize = [u8; 21];
+    fn as_key(&self, id: u32, proto: u8) -> Key<Self::KeySize> {
+        self.key(id, proto)
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use crate::Ipv6CIDR;
+
+    #[test]
+    fn contains_works_v6() {
+        let cidr_64: Ipv6CIDR = "fafa::/64".parse().unwrap();
+        let cidr_96 = "fafa::1:0:0:0/96".parse().unwrap();
+        let cidr_128 = "fafa::1:0:0:3/128".parse().unwrap();
+        assert!(cidr_64.contains(&cidr_64));
+        assert!(cidr_64.contains(&cidr_96));
+        assert!(cidr_64.contains(&cidr_128));
+        assert!(!cidr_96.contains(&cidr_64));
+        assert!(cidr_96.contains(&cidr_96));
+        assert!(cidr_96.contains(&cidr_128));
+        assert!(!cidr_128.contains(&cidr_64));
+        assert!(!cidr_128.contains(&cidr_96));
+        assert!(cidr_128.contains(&cidr_128));
     }
 }

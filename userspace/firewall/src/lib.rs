@@ -1,6 +1,7 @@
 mod as_octet;
 mod cidr;
 mod classifier;
+mod config;
 mod error;
 mod logger;
 mod rule_tracker;
@@ -10,6 +11,7 @@ use aya::{include_bytes_aligned, Bpf};
 
 pub use cidr::{Ipv4CIDR, Ipv6CIDR};
 pub use classifier::Classifier;
+pub use config::ConfigHandler;
 pub use firewall_common::Action;
 use firewall_common::GENERIC_PROTO;
 pub use logger::Logger;
@@ -20,9 +22,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 const EVENT_ARRAY: &str = "EVENTS";
 const SOURCE_ID_IPV4: &str = "SOURCE_ID_IPV4";
-const ACTION_MAP_IPV4: &str = "ACTION_MAP_IPV4";
+const RULE_MAP_IPV4: &str = "RULE_MAP_IPV4";
 const SOURCE_ID_IPV6: &str = "SOURCE_ID_IPV6";
-const ACTION_MAP_IPV6: &str = "ACTION_MAP_IPV6";
+const RULE_MAP_IPV6: &str = "RULE_MAP_IPV6";
+const CONFIG: &str = "CONFIG";
 
 pub fn init(iface: String) -> Result<Bpf> {
     #[cfg(debug_assertions)]

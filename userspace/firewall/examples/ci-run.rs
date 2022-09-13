@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Parser;
-use firewall::{init, Action, Classifier, Ipv4CIDR, Ipv6CIDR, Logger, Protocol, RuleTracker};
+use firewall::{init, Action, Classifier, ConfigHandler, Logger, Protocol, RuleTracker};
 
 #[derive(Debug, Parser)]
 pub struct Opt {
@@ -44,87 +44,67 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut classifier_v6 = Classifier::new_ipv6(&bpf)?;
     classifier_v6.insert(Ipv6Addr::from_str("fafa::2").unwrap(), 1)?;
 
+    let mut config_handler = ConfigHandler::new(&bpf)?;
+    config_handler.set_default_action(Action::Reject)?;
+
     let mut rule_tracker = RuleTracker::new_ipv4(&bpf)?;
     let mut rule_tracker_v6 = RuleTracker::new_ipv6(&bpf)?;
 
     rule_tracker_v6.add_rule(
         1,
-        Ipv6CIDR::new(Ipv6Addr::from_str("fafa::3").unwrap(), 128),
+        "fafa::3/128".parse().unwrap(),
         5000..=6000,
-        Action::Reject,
-        0,
         Protocol::TCP,
     )?;
 
-    rule_tracker.add_rule(
-        1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 0, 0), 16),
-        800..=900,
-        Action::Reject,
-        0,
-        Protocol::TCP,
-    )?;
+    rule_tracker.add_rule(1, "10.13.0.0/16".parse().unwrap(), 800..=900, Protocol::TCP)?;
 
     rule_tracker.add_rule(
         1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        "10.13.13.0/24".parse().unwrap(),
         5000..=6000,
-        Action::Reject,
-        0,
         Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
         1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        "10.13.13.0/24".parse().unwrap(),
         5800..=6000,
-        Action::Reject,
-        0,
         Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
         1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        "10.13.13.3/32".parse().unwrap(),
         300..=400,
-        Action::Reject,
-        100,
         Protocol::UDP,
     )?;
 
     rule_tracker.add_rule(
         1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        "10.13.13.3/32".parse().unwrap(),
         350..=400,
-        Action::Reject,
-        0,
         Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
         1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 2), 31),
+        "10.13.13.2/31".parse().unwrap(),
         7000..=8000,
-        Action::Reject,
-        0,
         Protocol::Generic,
     )?;
 
     rule_tracker.remove_rule(
         1,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 0), 24),
+        "10.13.13.0/24".parse().unwrap(),
         5000..=6000,
-        Action::Reject,
-        0,
         Protocol::TCP,
     )?;
 
     rule_tracker.add_rule(
         0,
-        Ipv4CIDR::new(Ipv4Addr::new(10, 13, 13, 3), 32),
+        "10.13.13.3/32".parse().unwrap(),
         5000..=6000,
-        Action::Reject,
-        0,
         Protocol::Generic,
     )?;
 
