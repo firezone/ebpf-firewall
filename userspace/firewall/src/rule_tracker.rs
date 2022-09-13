@@ -146,9 +146,9 @@ where
         if proto == Protocol::Generic {
             let res = self.add_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
             if res.is_ok() {
-                return self.add_rule_impl(id, cidr, ports, Protocol::UDP);
+                self.add_rule_impl(id, cidr, ports, Protocol::UDP)
             } else {
-                return res;
+                res
             }
         } else {
             self.add_rule_impl(id, cidr, ports, proto)
@@ -198,9 +198,9 @@ where
         if proto == Protocol::Generic {
             let res = self.remove_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
             if res.is_ok() {
-                return self.remove_rule_impl(id, cidr, ports, Protocol::UDP);
+                self.remove_rule_impl(id, cidr, ports, Protocol::UDP)
             } else {
-                return res;
+                res
             }
         } else {
             self.remove_rule_impl(id, cidr, ports, proto)
