@@ -1,23 +1,21 @@
 #![cfg(test)]
 
+mod test_data;
+
 use aya::Pod;
-use test_case::test_case;
 
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
-    rule_tracker::to_rule_store,
-    Ipv4CIDR, Ipv6CIDR,
-    Protocol::{self, Generic, TCP, UDP},
+    Ipv6CIDR,
+    Protocol::{Generic, UDP},
     Result, RuleTracker,
 };
 
 use core::fmt::Debug;
-use std::{
-    collections::HashMap,
-    net::{Ipv4Addr, Ipv6Addr},
-    str::FromStr,
-};
+use std::{collections::HashMap, net::Ipv6Addr, str::FromStr};
+
+use self::test_data::TestRun;
 
 use super::rule_trie::RuleTrie;
 
@@ -53,312 +51,55 @@ where
     }
 }
 
-fn prepare_ipv4() -> RuleTracker<Ipv4Addr, ()> {
-    let id = 0;
-    let mut rule_tracker = RuleTracker::<Ipv4Addr, _>::new_test().unwrap();
-
-    let cidr = Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32);
-    rule_tracker.add_rule(id, cidr, 10..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=25, Generic).unwrap();
-    let cidr = Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16);
-    rule_tracker.add_rule(id, cidr, 200..=500, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 12..=16, TCP).unwrap();
-    let cidr = Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32);
-    rule_tracker.add_rule(id, cidr, 18..=40, Generic).unwrap();
-    let cidr = Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24);
-    rule_tracker.add_rule(id, cidr, 200..=800, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 999..=999, TCP).unwrap();
-    let cidr = Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16);
-    rule_tracker.add_rule(id, cidr, 6000..=8000, TCP).unwrap();
-    rule_tracker
+#[test]
+fn add_ipv4_rule_works() {
+    let test_run = TestRun::with(test_data::prepare_ipv4());
+    test_data::prepared_expect_v4(test_run).run();
 }
 
-fn prepare_ipv6() -> RuleTracker<Ipv6Addr, ()> {
-    let id = 0;
-    let mut rule_tracker = RuleTracker::<Ipv6Addr, _>::new_test().unwrap();
-
-    let cidr = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128);
-    rule_tracker.add_rule(id, cidr, 10..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=25, Generic).unwrap();
-    let cidr = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64);
-    rule_tracker.add_rule(id, cidr, 200..=500, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 12..=16, TCP).unwrap();
-    let cidr = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128);
-    rule_tracker.add_rule(id, cidr, 18..=40, Generic).unwrap();
-    let cidr = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96);
-    rule_tracker.add_rule(id, cidr, 200..=800, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 999..=999, TCP).unwrap();
-    let cidr = Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64);
-    rule_tracker.add_rule(id, cidr, 6000..=8000, TCP).unwrap();
+#[test]
+fn port_0_match_all_ip_v4() {
+    let mut rule_tracker = test_data::prepare_ipv4();
     rule_tracker
-}
-
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 10, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 10, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 20, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 20, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 25, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 25, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 800, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 999, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 999, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 7000, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 10, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 10, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 20, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 20, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 25, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 25, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 800, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 999, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 999, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 7000, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 10, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 10, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 20, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 20, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 25, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 25, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 800, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 7000, UDP, false)]
-fn add_ipv4_rule_works(id: u32, cidr: Ipv4CIDR, port: u16, proto: Protocol, assert: bool) {
-    let rule_tracker = prepare_ipv4();
-
-    if let Some(rule_set) = rule_tracker.rule_map.get(&(id, proto, cidr)) {
-        let rule_store = to_rule_store(rule_set.clone());
-        println!("{rule_store:?}");
-        assert_eq!(rule_store.lookup(port), assert);
-    } else {
-        assert!(!assert);
-    }
-}
-
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 10, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 10, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 20, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 20, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 25, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 25, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 200, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 800, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 800, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 999, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 999, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 7000, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 10, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 10, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 20, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 20, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 25, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 25, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 200, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 800, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 800, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 999, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 999, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 7000, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 10, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 10, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 20, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 20, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 25, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 25, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 800, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 7000, UDP, false)]
-fn port_0_match_all_ip_v4(id: u32, cidr: Ipv4CIDR, port: u16, proto: Protocol, assert: bool) {
-    let mut rule_tracker = prepare_ipv4();
-    rule_tracker
-        .add_rule(
-            0,
-            Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24),
-            0..=0,
-            Generic,
-        )
+        .add_rule(0, "10.1.1.0/24".parse().unwrap(), 0..=0, Generic)
         .unwrap();
 
-    if let Some(rule_set) = rule_tracker.rule_map.get(&(id, proto, cidr)) {
-        let rule_store = to_rule_store(rule_set.clone());
-        println!("{rule_store:?}");
-        assert_eq!(rule_store.lookup(port), assert);
-    } else {
-        assert!(!assert);
-    }
+    let test_run = TestRun::with(rule_tracker);
+    test_data::prepared_expect_v4(test_run)
+        .expect_true(
+            "10.1.1.0/24",
+            &(0..65535u16).map(|p| (Generic, p)).collect::<Vec<_>>(),
+        )
+        .expect_true(
+            "10.1.1.3/32",
+            &(0..65535u16).map(|p| (Generic, p)).collect::<Vec<_>>(),
+        )
+        .run();
 }
 
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 10, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 10, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 20, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 20, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 25, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 25, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 800, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 999, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 999, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 3), 32), 7000, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 10, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 10, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 20, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 20, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 25, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 25, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 800, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 999, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 999, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24), 7000, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 10, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 10, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 20, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 20, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 25, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 25, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 200, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 200, UDP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 800, UDP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 800, TCP, false)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 7000, TCP, true)]
-#[test_case(0, Ipv4CIDR::new(Ipv4Addr::new(10, 1, 0, 0), 16), 7000, UDP, false)]
-fn remove_ipv4_rule_works(id: u32, cidr: Ipv4CIDR, port: u16, proto: Protocol, assert: bool) {
-    let mut rule_tracker = prepare_ipv4();
+#[test]
+fn remove_ipv4_rule_works() {
+    let mut rule_tracker = test_data::prepare_ipv4();
     rule_tracker
-        .remove_rule(
-            0,
-            Ipv4CIDR::new(Ipv4Addr::new(10, 1, 1, 0), 24),
-            200..=800,
-            UDP,
-        )
+        .remove_rule(0, "10.1.1.0/24".parse().unwrap(), 200..=800, UDP)
         .unwrap();
 
-    if let Some(rule_set) = rule_tracker.rule_map.get(&(id, proto, cidr)) {
-        let rule_store = to_rule_store(rule_set.clone());
-        println!("{rule_store:?}");
-        assert_eq!(rule_store.lookup(port), assert);
-    } else {
-        assert!(!assert);
-    }
+    let test_run = TestRun::with(rule_tracker);
+    test_data::prepared_expect_v4(test_run)
+        .expect_false("10.1.1.3/32", &[(UDP, 800)])
+        .expect_false("10.1.1.0/24", &[(UDP, 800)])
+        .run();
 }
 
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 10, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 10, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 20, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 20, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 25, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 25, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 800, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 999, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 999, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 7000, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 10, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 10, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 20, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 20, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 25, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 25, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 800, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 999, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 999, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 7000, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 10, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 10, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 20, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 20, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 25, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 25, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 800, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 7000, UDP, false)]
-fn add_ipv6_rule_works(id: u32, cidr: Ipv6CIDR, port: u16, proto: Protocol, assert: bool) {
-    let rule_tracker = prepare_ipv6();
-    if let Some(rule_set) = rule_tracker.rule_map.get(&(id, proto, cidr)) {
-        let rule_store = to_rule_store(rule_set.clone());
-        assert_eq!(rule_store.lookup(port), assert);
-    } else {
-        assert!(!assert)
-    }
+#[test]
+fn add_ipv6_rule_works() {
+    let test_run = TestRun::with(test_data::prepare_ipv6());
+    test_data::prepared_expect_v6(test_run).run();
 }
 
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 10, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 10, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 20, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 20, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 25, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 25, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 200, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 800, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 800, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 999, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 999, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 7000, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 10, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 10, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 20, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 20, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 25, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 25, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 200, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 800, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 800, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 999, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 999, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 7000, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 10, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 10, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 20, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 20, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 25, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 25, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 800, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 7000, UDP, false)]
-fn port_0_match_all_ip_v6(id: u32, cidr: Ipv6CIDR, port: u16, proto: Protocol, assert: bool) {
-    let mut rule_tracker = prepare_ipv6();
+#[test]
+fn port_0_match_all_ip_v6() {
+    let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
         .add_rule(
             0,
@@ -368,57 +109,22 @@ fn port_0_match_all_ip_v6(id: u32, cidr: Ipv6CIDR, port: u16, proto: Protocol, a
         )
         .unwrap();
 
-    if let Some(rule_set) = rule_tracker.rule_map.get(&(id, proto, cidr)) {
-        let rule_store = to_rule_store(rule_set.clone());
-        println!("{rule_store:?}");
-        assert_eq!(rule_store.lookup(port), assert);
-    } else {
-        assert!(!assert);
-    }
+    let test_run = TestRun::with(rule_tracker);
+    test_data::prepared_expect_v6(test_run)
+        .expect_true(
+            "fafa::1:0:0:0/96",
+            &(0..65535u16).map(|p| (Generic, p)).collect::<Vec<_>>(),
+        )
+        .expect_true(
+            "fafa::1:0:0:3/128",
+            &(0..65535u16).map(|p| (Generic, p)).collect::<Vec<_>>(),
+        )
+        .run();
 }
 
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 10, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 10, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 20, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 20, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 25, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 25, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 800, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 999, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 999, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:3").unwrap(), 128), 7000, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 10, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 10, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 20, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 20, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 25, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 25, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 800, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 999, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 999, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96), 7000, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 10, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 10, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 20, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 20, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 25, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 25, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 200, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 200, UDP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 800, UDP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 800, TCP, false)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 7000, TCP, true)]
-#[test_case(0, Ipv6CIDR::new(Ipv6Addr::from_str("fafa::").unwrap(), 64), 7000, UDP, false)]
-fn remove_ipv6_rule_works(id: u32, cidr: Ipv6CIDR, port: u16, proto: Protocol, assert: bool) {
-    let mut rule_tracker = prepare_ipv6();
+#[test]
+fn remove_ipv6_rule_works() {
+    let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
         .remove_rule(
             0,
@@ -428,11 +134,9 @@ fn remove_ipv6_rule_works(id: u32, cidr: Ipv6CIDR, port: u16, proto: Protocol, a
         )
         .unwrap();
 
-    if let Some(rule_set) = rule_tracker.rule_map.get(&(id, proto, cidr)) {
-        let rule_store = to_rule_store(rule_set.clone());
-        println!("{rule_store:?}");
-        assert_eq!(rule_store.lookup(port), assert);
-    } else {
-        assert!(!assert);
-    }
+    let test_run = TestRun::with(rule_tracker);
+    test_data::prepared_expect_v6(test_run)
+        .expect_false("fafa::1:0:0:3/128", &[(UDP, 800)])
+        .expect_false("fafa::1:0:0:0/96", &[(UDP, 800)])
+        .run();
 }

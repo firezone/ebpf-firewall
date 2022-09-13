@@ -7,7 +7,8 @@ impl RuleStore {
     // TODO: We need to check if this works in older kernels.
     // If it doesn't we need to use --unroll-loop.
     // We might need to refactor the loop to explicitly use `MAX_ITER`
-    // Note: MAX_ITER is at most 16
+    // Note: MAX_ITER is at most 17 if MAX_RULES is 65535 which is the maximum value
+    // that'd ever make sense.
     pub fn lookup(&self, val: u16) -> bool {
         // 0 means all ports
         if self.rules_len > 0 {

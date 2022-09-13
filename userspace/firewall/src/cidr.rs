@@ -1,16 +1,20 @@
 use std::{
-    net::{Ipv4Addr, Ipv6Addr},
+    fmt::Debug,
+    net::{AddrParseError, Ipv4Addr, Ipv6Addr},
+    num::ParseIntError,
     ops::{BitAnd, Not, Shr},
+    str::FromStr,
 };
 
 use aya::{maps::lpm_trie::Key, Pod};
+use thiserror::Error;
 
 use crate::as_octet::AsOctets;
 
 pub type Ipv4CIDR = Cidr<Ipv4Addr>;
 pub type Ipv6CIDR = Cidr<Ipv6Addr>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Cidr<T>
 where
     T: AsNum + From<T::Num>,
@@ -19,6 +23,17 @@ where
 {
     ip: T,
     prefix: u8,
+}
+
+impl<T> Debug for Cidr<T>
+where
+    T: AsNum + From<T::Num> + Debug,
+    T: AsOctets,
+    T::Octets: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}/{:?}", self.ip, self.prefix)
+    }
 }
 
 pub trait AsNum {
@@ -72,6 +87,40 @@ impl AsNum for Ipv6Addr {
 
     fn max() -> Self::Num {
         u128::MAX
+    }
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum CidrParseError {
+    #[error("Invalid CIDR format")]
+    InvalidFormat,
+    #[error("Invalid address format")]
+    IpError(#[from] AddrParseError),
+    #[error("Invalid prefix format")]
+    PrefixError(#[from] ParseIntError),
+}
+
+impl<T> FromStr for Cidr<T>
+where
+    T: AsNum + From<T::Num>,
+    T: AsOctets,
+    T::Octets: AsRef<[u8]>,
+    T: FromStr<Err = AddrParseError>,
+{
+    type Err = CidrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let try_cidr: Vec<&str> = s.split('/').collect();
+        if try_cidr.len() != 2 {
+            return Err(CidrParseError::InvalidFormat);
+        }
+
+        Ok(Self {
+            // We can unwrap here because we just checked try_cidr.len() == 2
+            ip: try_cidr.get(0).unwrap().parse()?,
+            // We can unwrap here because we just checked try_cidr.len() == 2
+            prefix: try_cidr.get(1).unwrap().parse()?,
+        })
     }
 }
 
