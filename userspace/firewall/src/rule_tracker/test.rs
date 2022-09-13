@@ -101,12 +101,7 @@ fn add_ipv6_rule_works() {
 fn port_0_match_all_ip_v6() {
     let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
-        .add_rule(
-            0,
-            Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96),
-            0..=0,
-            Generic,
-        )
+        .add_rule(0, "fafa::1:0:0:0/96".parse().unwrap(), 0..=0, Generic)
         .unwrap();
 
     let test_run = TestRun::with(rule_tracker);
@@ -126,12 +121,7 @@ fn port_0_match_all_ip_v6() {
 fn remove_ipv6_rule_works() {
     let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
-        .remove_rule(
-            0,
-            Ipv6CIDR::new(Ipv6Addr::from_str("fafa::1:0:0:0").unwrap(), 96),
-            200..=800,
-            UDP,
-        )
+        .remove_rule(0, "fafa::1:0:0:0/96".parse().unwrap(), 200..=800, UDP)
         .unwrap();
 
     let test_run = TestRun::with(rule_tracker);
