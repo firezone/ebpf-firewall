@@ -144,13 +144,24 @@ where
         proto: Protocol,
     ) -> Result<()> {
         if proto == Protocol::Generic {
-            let res = self.add_rule(id, cidr.clone(), ports.clone(), Protocol::TCP);
+            let res = self.add_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
             if res.is_ok() {
-                return self.add_rule(id, cidr, ports, Protocol::UDP);
+                return self.add_rule_impl(id, cidr, ports, Protocol::UDP);
             } else {
                 return res;
             }
+        } else {
+            self.add_rule_impl(id, cidr, ports, proto)
         }
+    }
+
+    fn add_rule_impl(
+        &mut self,
+        id: u32,
+        cidr: Cidr<T>,
+        ports: impl Into<RangeInclusive<u16>> + Clone,
+        proto: Protocol,
+    ) -> Result<()> {
         let ports = ports.into();
         if ports.contains(&0) && ports.len() > 1 {
             return Err(Error::InvalidPort);
@@ -177,7 +188,6 @@ where
         self.propagate(port_range, id, proto)?;
         Ok(())
     }
-
     pub fn remove_rule(
         &mut self,
         id: u32,
@@ -186,13 +196,24 @@ where
         proto: Protocol,
     ) -> Result<()> {
         if proto == Protocol::Generic {
-            let res = self.remove_rule(id, cidr.clone(), ports.clone(), Protocol::TCP);
+            let res = self.remove_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
             if res.is_ok() {
-                return self.remove_rule(id, cidr, ports, Protocol::UDP);
+                return self.remove_rule_impl(id, cidr, ports, Protocol::UDP);
             } else {
                 return res;
             }
+        } else {
+            self.remove_rule_impl(id, cidr, ports, proto)
         }
+    }
+
+    pub fn remove_rule_impl(
+        &mut self,
+        id: u32,
+        cidr: Cidr<T>,
+        ports: impl Into<RangeInclusive<u16>> + Clone,
+        proto: Protocol,
+    ) -> Result<()> {
         let port_range = PortRange {
             ports: ports.into(),
             origin: cidr.clone(),
