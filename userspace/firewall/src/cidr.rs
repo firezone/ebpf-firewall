@@ -117,7 +117,7 @@ where
 
         Ok(Self {
             // We can unwrap here because we just checked try_cidr.len() == 2
-            ip: try_cidr.get(0).unwrap().parse()?,
+            ip: try_cidr.first().unwrap().parse()?,
             // We can unwrap here because we just checked try_cidr.len() == 2
             prefix: try_cidr.get(1).unwrap().parse()?,
         })
