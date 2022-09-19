@@ -1,5 +1,2 @@
 [workspace]
 members = ["firewall", "firewall-common", "xtask"]
-
-[patch.crates-io]
-aya = { git = "https://github.com/aya-rs/aya.git", rev = "23c0460ab36e35d15a8b2d2246ebfb1e9544beeb" }

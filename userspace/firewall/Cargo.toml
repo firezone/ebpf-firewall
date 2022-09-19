@@ -11,7 +11,7 @@ async-std = ["dep:async-std", "aya/async_std"]
 wireguard = []
 
 [dependencies]
-aya = { version = ">=0.11" }
+aya = { git = "https://github.com/aya-rs/aya.git", rev = "23c0460ab36e35d15a8b2d2246ebfb1e9544beeb" }
 firewall-common = { path = "../firewall-common", features = ["user"] }
 tracing = "0.1"
 bytes = "1.2.1"
