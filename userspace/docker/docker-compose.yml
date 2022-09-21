@@ -46,7 +46,7 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.3
-    command: /bin/sh -c "sleep 60 && echo peer1! && echo howdy | nc -nv fafa::3 5500"
+    command: /bin/sh -c "sleep 5 && echo peer1! && echo howdy | nc -nv fafa::3 5500"
 
   peer2:
     image: wireguard-test:latest
@@ -65,7 +65,7 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.4
-    command: /bin/sh -c "sleep 50 && echo peer2! && while true; do echo "hi" | nc -lv fafa::3 5500; done"
+    command: /bin/sh -c "sleep 5 && echo peer2! && while true; do echo "hi" | nc -lv fafa::3 5500; done"
 
   peer3:
     image: wireguard-test:latest
@@ -84,7 +84,7 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.5
-    command: /bin/sh -c "sleep 60 && echo peer3! && ping 142.251.134.78"
+    command: /bin/sh -c "sleep 5 && echo peer3! && ping 142.251.134.78"
 
 networks:
   internal:

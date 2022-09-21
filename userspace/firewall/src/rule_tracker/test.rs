@@ -7,13 +7,12 @@ use aya::Pod;
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
-    Ipv6CIDR,
     Protocol::{Generic, UDP},
     Result, RuleTracker,
 };
 
 use core::fmt::Debug;
-use std::{collections::HashMap, net::Ipv6Addr, str::FromStr};
+use std::collections::HashMap;
 
 use self::test_data::TestRun;
 
