@@ -115,12 +115,12 @@ where
             return Err(CidrParseError::InvalidFormat);
         }
 
-        Ok(Self {
+        Ok(Self::new(
             // We can unwrap here because we just checked try_cidr.len() == 2
-            ip: try_cidr.first().unwrap().parse()?,
+            try_cidr.first().unwrap().parse()?,
             // We can unwrap here because we just checked try_cidr.len() == 2
-            prefix: try_cidr.get(1).unwrap().parse()?,
-        })
+            try_cidr.get(1).unwrap().parse()?,
+        ))
     }
 }
 
@@ -164,7 +164,10 @@ where
         prot[0] = proto;
         id.copy_from_slice(&key_id);
         cidr.copy_from_slice(key_cidr.as_ref());
-        Key::new(u32::from(self.prefix) + 32, key_data)
+        Key::new(
+            u32::from(self.prefix) + (left_key_data.len() * 8) as u32,
+            key_data,
+        )
     }
 }
 
@@ -190,7 +193,9 @@ impl AsKey for Cidr<Ipv6Addr> {
 #[cfg(test)]
 mod test {
 
-    use crate::Ipv6CIDR;
+    use aya::maps::lpm_trie::Key;
+
+    use crate::{cidr::AsKey, Ipv4CIDR, Ipv6CIDR, Protocol};
 
     #[test]
     fn contains_works_v6() {
@@ -206,5 +211,49 @@ mod test {
         assert!(!cidr_128.contains(&cidr_64));
         assert!(!cidr_128.contains(&cidr_96));
         assert!(cidr_128.contains(&cidr_128));
+    }
+
+    #[test]
+    fn as_key_works() {
+        let cidr: Ipv4CIDR = "142.251.134.77/32".parse().unwrap();
+
+        let x = cidr.as_key(0, Protocol::TCP as u8);
+        let y = Key::new(72, [0u8, 0, 0, 0, 6, 142, 251, 134, 77]);
+        assert_eq!(x.data, y.data);
+
+        let actual_len = x.prefix_len;
+        let expected_len = y.prefix_len;
+        assert_eq!(actual_len, expected_len);
+    }
+
+    #[test]
+    fn as_key_works_24() {
+        let cidr: Ipv4CIDR = "142.251.134.77/24".parse().unwrap();
+
+        let x = cidr.as_key(0, Protocol::TCP as u8);
+        let y = Key::new(64, [0u8, 0, 0, 0, 6, 142, 251, 134, 0]);
+        assert_eq!(x.data, y.data);
+
+        let actual_len = x.prefix_len;
+        let expected_len = y.prefix_len;
+        assert_eq!(actual_len, expected_len);
+    }
+    #[test]
+    fn as_key_works_ipv6() {
+        let cidr: Ipv6CIDR = "fafa::3/128".parse().unwrap();
+
+        let x = cidr.as_key(0, Protocol::TCP as u8);
+        let y = Key::new(
+            168,
+            [
+                0u8, 0, 0, 0, 6, 0xfa, 0xfa, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x03,
+            ],
+        );
+        assert_eq!(x.data, y.data);
+
+        let actual_len = x.prefix_len;
+        let expected_len = y.prefix_len;
+        assert_eq!(actual_len, expected_len);
     }
 }
