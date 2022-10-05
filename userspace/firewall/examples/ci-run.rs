@@ -36,19 +36,19 @@ async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt::init();
 
     bump_memlock_rlimit()?;
-    let bpf = init(opt.iface)?;
+    let program = init(opt.iface)?;
 
-    let mut classifier = Classifier::new_ipv4(&bpf)?;
+    let mut classifier = Classifier::new_ipv4(&program)?;
     classifier.insert(Ipv4Addr::new(10, 13, 13, 2), 1)?;
 
-    let mut classifier_v6 = Classifier::new_ipv6(&bpf)?;
+    let mut classifier_v6 = Classifier::new_ipv6(&program)?;
     classifier_v6.insert(Ipv6Addr::from_str("fafa::2").unwrap(), 1)?;
 
-    let mut config_handler = ConfigHandler::new(&bpf)?;
+    let mut config_handler = ConfigHandler::new(&program)?;
     config_handler.set_default_action(Action::Reject)?;
 
-    let mut rule_tracker = RuleTracker::new_ipv4(&bpf)?;
-    let mut rule_tracker_v6 = RuleTracker::new_ipv6(&bpf)?;
+    let mut rule_tracker = RuleTracker::new_ipv4(&program)?;
+    let mut rule_tracker_v6 = RuleTracker::new_ipv6(&program)?;
 
     rule_tracker_v6.add_rule(
         1,
@@ -108,7 +108,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Protocol::Generic,
     )?;
 
-    let mut logger = Logger::new(&bpf)?;
+    let mut logger = Logger::new(&program)?;
     logger.init()?;
     tracing::info!("Program executed");
 

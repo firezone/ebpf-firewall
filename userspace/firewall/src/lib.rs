@@ -27,7 +27,9 @@ const SOURCE_ID_IPV6: &str = "SOURCE_ID_IPV6";
 const RULE_MAP_IPV6: &str = "RULE_MAP_IPV6";
 const CONFIG: &str = "CONFIG";
 
-pub fn init(iface: String) -> Result<Bpf> {
+pub struct Program(Bpf);
+
+pub fn init(iface: String) -> Result<Program> {
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
         "../../target/artifacts/bpfel-unknown-none/debug/firewall-ebpf"
@@ -44,7 +46,7 @@ pub fn init(iface: String) -> Result<Bpf> {
     program.load()?;
     program.attach(&iface, TcAttachType::Ingress, 0)?;
 
-    Ok(bpf)
+    Ok(Program(bpf))
 }
 
 #[repr(u8)]

@@ -2,10 +2,10 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use aya::{
     maps::{HashMap, MapRefMut},
-    Bpf, Pod,
+    Pod,
 };
 
-use crate::{as_octet::AsOctets, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
+use crate::{as_octet::AsOctets, Program, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
 
 pub struct Classifier<T: AsOctets>
 where
@@ -15,14 +15,14 @@ where
 }
 
 impl Classifier<Ipv4Addr> {
-    pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, SOURCE_ID_IPV4)
+    pub fn new_ipv4(program: &Program) -> Result<Self> {
+        Self::new_with_name(program, SOURCE_ID_IPV4)
     }
 }
 
 impl Classifier<Ipv6Addr> {
-    pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, SOURCE_ID_IPV6)
+    pub fn new_ipv6(program: &Program) -> Result<Self> {
+        Self::new_with_name(program, SOURCE_ID_IPV6)
     }
 }
 
@@ -40,9 +40,9 @@ where
         Ok(())
     }
 
-    fn new_with_name(bpf: &Bpf, map_name: impl AsRef<str>) -> Result<Self> {
+    fn new_with_name(program: &Program, map_name: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
-            ebpf_map: HashMap::try_from(bpf.map_mut(map_name.as_ref())?)?,
+            ebpf_map: HashMap::try_from(program.0.map_mut(map_name.as_ref())?)?,
         })
     }
 }

@@ -1,23 +1,20 @@
-use aya::{
-    maps::{HashMap, MapRefMut},
-    Bpf,
-};
+use aya::maps::{HashMap, MapRefMut};
 use firewall_common::{Action, ConfigOpt};
 
-use crate::{Result, CONFIG};
+use crate::{Program, Result, CONFIG};
 
 pub struct ConfigHandler {
     ebpf_map: HashMap<MapRefMut, ConfigOpt, i32>,
 }
 
 impl ConfigHandler {
-    pub fn new(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, CONFIG)
+    pub fn new(program: &Program) -> Result<Self> {
+        Self::new_with_name(program, CONFIG)
     }
 
-    fn new_with_name(bpf: &Bpf, map_name: impl AsRef<str>) -> Result<Self> {
+    fn new_with_name(program: &Program, map_name: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
-            ebpf_map: HashMap::try_from(bpf.map_mut(map_name.as_ref())?)?,
+            ebpf_map: HashMap::try_from(program.0.map_mut(map_name.as_ref())?)?,
         })
     }
 
