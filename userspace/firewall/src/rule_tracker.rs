@@ -9,13 +9,16 @@ use std::{
     ops::RangeInclusive,
 };
 
-use aya::maps::{lpm_trie::LpmTrie, MapRefMut};
+use aya::{
+    maps::{lpm_trie::LpmTrie, MapRefMut},
+    Bpf,
+};
 use firewall_common::RuleStore;
 
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
-    Error, Program, Protocol, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
+    Error, Firewall, Protocol, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
 use rule_trie::RuleTrie;
 
@@ -69,6 +72,9 @@ where
     res
 }
 
+pub type RuleTrackerV4 = RuleTracker<Ipv4Addr, LpmTrie<MapRefMut, [u8; 9], RuleStore>>;
+pub type RuleTrackerV6 = RuleTracker<Ipv6Addr, LpmTrie<MapRefMut, [u8; 21], RuleStore>>;
+
 pub struct RuleTracker<T, U>
 where
     T: AsNum + From<T::Num>,
@@ -97,14 +103,14 @@ where
 }
 
 impl RuleTracker<Ipv4Addr, LpmTrie<MapRefMut, [u8; 9], RuleStore>> {
-    pub fn new_ipv4(program: &Program) -> Result<Self> {
-        Self::new_with_name(program, RULE_MAP_IPV4)
+    pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
+        Self::new_with_name(bpf, RULE_MAP_IPV4)
     }
 }
 
 impl RuleTracker<Ipv6Addr, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
-    pub fn new_ipv6(program: &Program) -> Result<Self> {
-        Self::new_with_name(program, RULE_MAP_IPV6)
+    pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
+        Self::new_with_name(bpf, RULE_MAP_IPV6)
     }
 }
 
@@ -115,9 +121,9 @@ where
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
-    fn new_with_name(program: &Program, store_name: impl AsRef<str>) -> Result<Self> {
+    fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
         let ebpf_store: LpmTrie<_, <Cidr<T> as AsKey>::KeySize, RuleStore> =
-            LpmTrie::try_from(program.0.map_mut(store_name.as_ref())?)?;
+            LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
         Ok(Self {
             rule_map: HashMap::new(),
             ebpf_store,
