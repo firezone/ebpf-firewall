@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Parser;
-use firewall::{init, Action, Classifier, ConfigHandler, Logger, Protocol, RuleTracker};
+use firewall::{Action, Classifier, ConfigHandler, Logger, Protocol, RuleTracker};
 
 #[derive(Debug, Parser)]
 pub struct Opt {

@@ -12,6 +12,7 @@ use aya::{
         Map, MapRefMut,
     },
     util::online_cpus,
+    Bpf,
 };
 use bytes::BytesMut;
 use firewall_common::PacketLog;
@@ -29,14 +30,14 @@ pub struct Logger {
 }
 
 impl Logger {
-    fn new_with_name(program: &Firewall, map_name: impl AsRef<str>) -> Result<Self> {
+    fn new_with_name(bpf: &Bpf, map_name: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
-            event_array: AsyncPerfEventArray::try_from(program.0.map_mut(map_name.as_ref())?)?,
+            event_array: AsyncPerfEventArray::try_from(bpf.map_mut(map_name.as_ref())?)?,
         })
     }
 
-    pub fn new(program: &Firewall) -> Result<Self> {
-        Self::new_with_name(program, EVENT_ARRAY)
+    pub fn new(bpf: &Bpf) -> Result<Self> {
+        Self::new_with_name(bpf, EVENT_ARRAY)
     }
 
     pub fn init(&mut self) -> Result<()> {

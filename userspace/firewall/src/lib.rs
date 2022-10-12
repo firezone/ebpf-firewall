@@ -6,6 +6,7 @@ mod error;
 mod logger;
 mod rule_tracker;
 
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ops::RangeInclusive;
 
 use as_octet::AsOctets;
@@ -42,7 +43,7 @@ pub struct Firewall {
 }
 
 impl Firewall {
-    pub fn init(iface: String) -> Result<Firewall> {
+    pub fn new(iface: String) -> Result<Firewall> {
         #[cfg(debug_assertions)]
         let mut bpf = Bpf::load(include_bytes_aligned!(
             "../../target/artifacts/bpfel-unknown-none/debug/firewall-ebpf"
@@ -63,6 +64,7 @@ impl Firewall {
         let rule_tracker_v6 = RuleTrackerV6::new_ipv6(&bpf)?;
         let classifier_v4 = ClassifierV4::new_ipv4(&bpf)?;
         let classifier_v6 = ClassifierV6::new_ipv6(&bpf)?;
+        let logger = Logger::new(&bpf);
 
         Ok(Self {
             bpf,
@@ -71,6 +73,21 @@ impl Firewall {
             classifier_v4,
             classifier_v6,
         })
+    }
+
+    pub fn add_rule_v4(&mut self, rule: &Rule<Ipv4Addr>) -> Result<()> {
+        self.rule_tracker_v4.add_rule(rule)
+    }
+
+    pub fn add_rule_v6(&mut self, rule: &Rule<Ipv6Addr>) -> Result<()> {
+        self.rule_tracker_v6.add_rule(rule)
+    }
+    pub fn add_id_v4(&mut self, ip: Ipv4Addr, id: u32) -> Result<()> {
+        self.classifier_v4.insert(ip, id)
+    }
+
+    pub fn add_id_v6(&mut self, ip: Ipv6Addr, id: u32) -> Result<()> {
+        self.classifier_v6.insert(ip, id)
     }
 }
 

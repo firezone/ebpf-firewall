@@ -18,7 +18,7 @@ use firewall_common::RuleStore;
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
-    Error, Firewall, Protocol, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
+    Error, Protocol, Result, Rule, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
 use rule_trie::RuleTrie;
 
@@ -141,29 +141,42 @@ where
 {
     pub fn add_rule(
         &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
+        Rule {
+            id,
+            dest,
+            port_range,
+        }: &Rule<T>,
     ) -> Result<()> {
-        if proto == Protocol::Generic {
-            let res = self.add_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
-            if res.is_ok() {
-                self.add_rule_impl(id, cidr, ports, Protocol::UDP)
-            } else {
-                res
+        if let Some(port_range) = port_range {
+            if port_range.proto == Protocol::Generic {
+                let res = self.add_rule_impl(
+                    id.unwrap_or(0),
+                    dest.clone(),
+                    port_range.ports.clone(),
+                    Protocol::TCP,
+                );
+                if res.is_ok() {
+                    return self.add_rule_impl(
+                        id.unwrap_or(0),
+                        *dest,
+                        port_range.ports,
+                        Protocol::UDP,
+                    );
+                } else {
+                    return res;
+                }
             }
-        } else {
-            self.add_rule_impl(id, cidr, ports, proto)
         }
+        self.add_rule_impl(id.unwrap_or(0), cidr, ports, proto)
     }
 
     fn add_rule_impl(
         &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
+        Rule {
+            id,
+            dest,
+            port_range,
+        }: &Rule<T>,
     ) -> Result<()> {
         let ports = ports.into();
         if ports.contains(&0) && ports.len() > 1 {

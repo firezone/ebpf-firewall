@@ -4,7 +4,7 @@ use aya::{
 };
 use firewall_common::{Action, ConfigOpt};
 
-use crate::{Firewall, Result, CONFIG};
+use crate::{Result, CONFIG};
 
 pub struct ConfigHandler {
     ebpf_map: HashMap<MapRefMut, ConfigOpt, i32>,
