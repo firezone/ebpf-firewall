@@ -5,7 +5,7 @@ services:
     build: .
     image: wireguard-test:latest
     volumes:
-      - ../target/debug/examples/logger-firewall:/logger-firewall:ro
+      - ../target/debug/examples/logger-firewall:/logger-firewall
       - ./peers/:/config/:rw
     environment:
       - PEERS=3
@@ -32,7 +32,7 @@ services:
   peer1:
     image: wireguard-test:latest
     volumes:
-      - ./peers/peer1/peer1.conf:/config/wg0.conf:ro
+      - ./peers/peer1/peer1.conf:/config/wg0.conf
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -46,12 +46,12 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.3
-    command: /bin/sh -c "sleep 5 && echo peer1! && echo howdy | nc -nv fafa::3 5500"
+    command: /bin/sh -c "sleep 10 && echo peer1! && echo howdy | nc -nvvv fafa::3 5500"
 
   peer2:
     image: wireguard-test:latest
     volumes:
-      - ./peers/peer2/peer2.conf:/config/wg0.conf:ro
+      - ./peers/peer2/peer2.conf:/config/wg0.conf
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -65,12 +65,12 @@ services:
     networks:
       internal:
         ipv4_address: 172.8.0.4
-    command: /bin/sh -c "sleep 5 && echo peer2! && while true; do echo "hi" | nc -lv fafa::3 5500; done"
+    command: /bin/sh -c "sleep 5 && echo peer2! && while true; do echo "hi" | nc -nlvvv fafa::3 5500; done"
 
   peer3:
     image: wireguard-test:latest
     volumes:
-      - ./peers/peer3/peer3.conf:/config/wg0.conf:ro
+      - ./peers/peer3/peer3.conf:/config/wg0.conf
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
