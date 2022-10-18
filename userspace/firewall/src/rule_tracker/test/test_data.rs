@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, Cidr},
+    cidr::{AsKey, AsNum},
     rule_tracker::to_rule_store,
     Protocol,
     Protocol::Generic,
@@ -200,21 +200,26 @@ type Port = (Protocol, u16);
 #[derive(Debug)]
 pub(crate) struct TestRun<T>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone + AsOctets,
-    Cidr<T>: AsKey,
+    T: AsNum + From<T::Num> + Eq + Hash + Clone + AsOctets + AsKey,
     T::Octets: AsRef<[u8]>,
 {
     rule_tracker: RuleTracker<T, ()>,
-    expect_true: HashMap<(u32, Cidr<T>), HashSet<Port>>,
-    expect_false: HashMap<(u32, Cidr<T>), HashSet<Port>>,
+    expect_true: HashMap<(u32, T), HashSet<Port>>,
+    expect_false: HashMap<(u32, T), HashSet<Port>>,
 }
 
 impl<T> TestRun<T>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone + AsOctets + FromStr<Err = AddrParseError>,
-    Cidr<T>: AsKey,
+    T: AsNum
+        + From<T::Num>
+        + Eq
+        + Hash
+        + Clone
+        + AsOctets
+        + FromStr<Err = AddrParseError>
+        + AsKey
+        + Debug,
     T::Octets: AsRef<[u8]>,
-    T: Debug,
 {
     pub(crate) fn run(&self) {
         println!("{self:#?}");
@@ -256,7 +261,7 @@ where
     }
 
     pub(crate) fn expect_true(mut self, cidr: impl AsRef<str>, ports: &[Port]) -> Self {
-        let cidr: Cidr<T> = cidr.as_ref().parse().unwrap();
+        let cidr: T = cidr.as_ref().parse().unwrap();
 
         let ports: HashSet<_> = ports
             .iter()
@@ -286,7 +291,7 @@ where
     }
 
     pub(crate) fn expect_false(mut self, cidr: impl AsRef<str>, ports: &[Port]) -> Self {
-        let cidr: Cidr<T> = cidr.as_ref().parse().unwrap();
+        let cidr: T = cidr.as_ref().parse().unwrap();
 
         let ports: HashSet<_> = ports
             .iter()

@@ -6,7 +6,7 @@ use aya::Pod;
 
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, Cidr},
+    cidr::{AsKey, AsNum},
     Protocol::{Generic, UDP},
     Result, Rule, RuleTracker,
 };
@@ -37,9 +37,7 @@ impl<K: Pod, V: Pod> RuleTrie<K, V> for () {
 
 impl<T> RuleTracker<T, ()>
 where
-    T: AsNum + From<T::Num> + Debug,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + From<T::Num> + Debug + AsKey + AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     pub fn new_test() -> Result<Self> {

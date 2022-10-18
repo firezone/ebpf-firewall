@@ -6,20 +6,17 @@ mod error;
 mod logger;
 mod rule_tracker;
 
-use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ops::RangeInclusive;
 
-use as_octet::AsOctets;
 use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::{include_bytes_aligned, Bpf};
 
-use cidr::{AsNum, Cidr};
-pub use cidr::{Ipv4CIDR, Ipv6CIDR};
 pub use classifier::Classifier;
 use classifier::{ClassifierV4, ClassifierV6};
 pub use config::ConfigHandler;
 pub use firewall_common::Action;
 use firewall_common::GENERIC_PROTO;
+use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 pub use logger::Logger;
 pub use rule_tracker::RuleTracker;
 
@@ -62,10 +59,10 @@ impl Firewall {
         program.load()?;
         program.attach(&iface, TcAttachType::Ingress, 0)?;
 
-        let rule_tracker_v4 = RuleTrackerV4::new_ipv4(&bpf)?;
-        let rule_tracker_v6 = RuleTrackerV6::new_ipv6(&bpf)?;
-        let classifier_v4 = ClassifierV4::new_ipv4(&bpf)?;
-        let classifier_v6 = ClassifierV6::new_ipv6(&bpf)?;
+        let rule_tracker_v4 = RuleTrackerV4::new(&bpf)?;
+        let rule_tracker_v6 = RuleTrackerV6::new(&bpf)?;
+        let classifier_v4 = ClassifierV4::new(&bpf)?;
+        let classifier_v6 = ClassifierV6::new(&bpf)?;
         let logger = Logger::new(&bpf)?;
         let config = ConfigHandler::new(&bpf)?;
 
@@ -84,34 +81,32 @@ impl Firewall {
         self.config.set_default_action(action)
     }
 
-    pub fn add_rule_v4(&mut self, rule: &Rule<Ipv4Addr>) -> Result<()> {
-        self.rule_tracker_v4.add_rule(rule)
+    pub fn add_rule(&mut self, rule: &Rule) -> Result<()> {
+        match &rule {
+            Rule::V4(r) => self.rule_tracker_v4.add_rule(r),
+            Rule::V6(r) => self.rule_tracker_v6.add_rule(r),
+        }
     }
 
-    pub fn add_rule_v6(&mut self, rule: &Rule<Ipv6Addr>) -> Result<()> {
-        self.rule_tracker_v6.add_rule(rule)
-    }
-    pub fn add_id_v4(&mut self, ip: Ipv4Addr, id: u32) -> Result<()> {
-        self.classifier_v4.insert(ip, id)
-    }
-
-    pub fn add_id_v6(&mut self, ip: Ipv6Addr, id: u32) -> Result<()> {
-        self.classifier_v6.insert(ip, id)
+    pub fn remove_rule(&mut self, rule: &Rule) -> Result<()> {
+        match &rule {
+            Rule::V4(r) => self.rule_tracker_v4.remove_rule(r),
+            Rule::V6(r) => self.rule_tracker_v6.remove_rule(r),
+        }
     }
 
-    pub fn remove_rule_v4(&mut self, rule: &Rule<Ipv4Addr>) -> Result<()> {
-        self.rule_tracker_v4.remove_rule(rule)
+    pub fn add_id_v4(&mut self, ip: IpNet, id: u32) -> Result<()> {
+        match ip {
+            IpNet::V4(ip) => self.classifier_v4.insert(ip, id),
+            IpNet::V6(ip) => self.classifier_v6.insert(ip, id),
+        }
     }
 
-    pub fn remove_rule_v6(&mut self, rule: &Rule<Ipv6Addr>) -> Result<()> {
-        self.rule_tracker_v6.remove_rule(rule)
-    }
-    pub fn remove_id_v4(&mut self, ip: &Ipv4Addr) -> Result<()> {
-        self.classifier_v4.remove(ip)
-    }
-
-    pub fn remove_id_v6(&mut self, ip: &Ipv6Addr) -> Result<()> {
-        self.classifier_v6.remove(ip)
+    pub fn remove_id(&mut self, ip: &IpNet) -> Result<()> {
+        match ip {
+            IpNet::V4(ip) => self.classifier_v4.remove(ip),
+            IpNet::V6(ip) => self.classifier_v6.remove(ip),
+        }
     }
 
     pub fn start_logging(&mut self) -> Result<()> {
@@ -120,42 +115,65 @@ impl Firewall {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Rule<T: AsNum + From<T::Num> + AsOctets>
-where
-    T::Octets: AsRef<[u8]>,
-{
+pub enum Rule {
+    V4(RuleImpl<Ipv4Net>),
+    V6(RuleImpl<Ipv6Net>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct RuleImpl<T> {
     id: Option<u32>,
-    dest: Cidr<T>,
+    dest: T,
     port_range: Option<PortRange>,
 }
 
-impl<T> Rule<T>
-where
-    T: AsNum + From<T::Num> + AsOctets,
-    T::Octets: AsRef<[u8]>,
-{
-    pub fn new(dest: Cidr<T>) -> Self {
-        Self {
-            dest,
-            id: None,
-            port_range: None,
-        }
-    }
-
-    pub fn with_id(self, id: u32) -> Self {
+impl<T> RuleImpl<T> {
+    fn with_id(self, id: u32) -> Self {
         Self {
             id: Some(id),
             ..self
         }
     }
 
-    pub fn with_range(self, range: RangeInclusive<u16>, proto: Protocol) -> Self {
+    fn with_range(self, range: RangeInclusive<u16>, proto: Protocol) -> Self {
         Self {
             port_range: Some(PortRange {
                 ports: range,
                 proto,
             }),
             ..self
+        }
+    }
+}
+
+impl Rule {
+    pub fn new(dest: IpNet) -> Self {
+        match dest {
+            IpNet::V4(dest) => Rule::V4(RuleImpl {
+                dest,
+                id: None,
+                port_range: None,
+            }),
+            IpNet::V6(dest) => Rule::V6(RuleImpl {
+                dest,
+                id: None,
+                port_range: None,
+            }),
+        }
+    }
+
+    // TODO: Could avoid repetititon using a lambda for these 2 functions below
+    pub fn with_id(self, id: u32) -> Self {
+        match self {
+            Rule::V4(r) => Rule::V4(r.with_id(id)),
+            Rule::V6(r) => Rule::V6(r.with_id(id)),
+        }
+    }
+
+    pub fn with_range(self, range: RangeInclusive<u16>, proto: Protocol) -> Self {
+        match self {
+            Rule::V4(r) => Rule::V4(r.with_range(range, proto)),
+            Rule::V6(r) => Rule::V6(r.with_range(range, proto)),
         }
     }
 }

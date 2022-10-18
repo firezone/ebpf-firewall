@@ -1,9 +1,8 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
-
 use aya::{
     maps::{HashMap, MapRefMut},
     Bpf, Pod,
 };
+use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{as_octet::AsOctets, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
 
@@ -14,17 +13,17 @@ where
     ebpf_map: HashMap<MapRefMut, T::Octets, u32>,
 }
 
-pub type ClassifierV6 = Classifier<Ipv6Addr>;
-pub type ClassifierV4 = Classifier<Ipv4Addr>;
+pub(crate) type ClassifierV6 = Classifier<Ipv6Net>;
+pub(crate) type ClassifierV4 = Classifier<Ipv4Net>;
 
-impl Classifier<Ipv4Addr> {
-    pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
+impl Classifier<Ipv4Net> {
+    pub fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, SOURCE_ID_IPV4)
     }
 }
 
-impl Classifier<Ipv6Addr> {
-    pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
+impl Classifier<Ipv6Net> {
+    pub fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, SOURCE_ID_IPV6)
     }
 }

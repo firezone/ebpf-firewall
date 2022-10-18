@@ -5,7 +5,6 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
-    net::{Ipv4Addr, Ipv6Addr},
 };
 
 use aya::{
@@ -13,28 +12,28 @@ use aya::{
     Bpf,
 };
 use firewall_common::RuleStore;
+use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, Cidr},
-    Error, Protocol, Result, Rule, RULE_MAP_IPV4, RULE_MAP_IPV6,
+    cidr::{AsKey, AsNum, Contains, Normalize, Normalized},
+    Error, Protocol, Result, RuleImpl, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
 use rule_trie::RuleTrie;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PortRange<T>
 where
-    T: AsNum + From<T::Num>,
-    T: AsOctets,
+    T: AsNum + AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     pub ports: super::PortRange,
-    pub origin: Cidr<T>,
+    pub origin: T,
 }
 
 impl<T> PortRange<T>
 where
-    T: AsNum + From<T::Num> + AsOctets + Clone,
+    T: AsNum + AsOctets + Clone,
     T::Octets: AsRef<[u8]>,
 {
     fn unfold(&self) -> Vec<Self> {
@@ -51,8 +50,7 @@ where
 
 fn to_rule_store<T>(port_ranges: HashSet<PortRange<T>>) -> RuleStore
 where
-    T: AsNum + From<T::Num>,
-    T: AsOctets,
+    T: AsNum + AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     let port_ranges = &mut port_ranges.iter().collect::<Vec<_>>()[..];
@@ -63,8 +61,7 @@ where
 
 fn resolve_overlap<T>(port_ranges: &mut [&PortRange<T>]) -> Vec<(u16, u16)>
 where
-    T: AsNum + From<T::Num>,
-    T: AsOctets,
+    T: AsNum + AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     let mut res = Vec::new();
@@ -88,28 +85,24 @@ where
     res
 }
 
-pub type RuleTrackerV4 = RuleTracker<Ipv4Addr, LpmTrie<MapRefMut, [u8; 9], RuleStore>>;
-pub type RuleTrackerV6 = RuleTracker<Ipv6Addr, LpmTrie<MapRefMut, [u8; 21], RuleStore>>;
+pub(crate) type RuleTrackerV4 = RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 9], RuleStore>>;
+pub(crate) type RuleTrackerV6 = RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>>;
 
 pub struct RuleTracker<T, U>
 where
-    T: AsNum + From<T::Num>,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + AsOctets + AsKey + Normalize,
     T::Octets: AsRef<[u8]>,
-    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+    U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
-    rule_map: HashMap<(u32, Protocol, Cidr<T>), HashSet<PortRange<T>>>,
+    rule_map: HashMap<(u32, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
     ebpf_store: U,
 }
 
 impl<T, U> Debug for RuleTracker<T, U>
 where
-    T: AsNum + From<T::Num> + Debug,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + AsKey + Normalize + AsOctets + Debug,
     T::Octets: AsRef<[u8]>,
-    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+    U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuleTracker")
@@ -118,27 +111,26 @@ where
     }
 }
 
-impl RuleTracker<Ipv4Addr, LpmTrie<MapRefMut, [u8; 9], RuleStore>> {
-    pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
+impl RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 9], RuleStore>> {
+    pub fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV4)
     }
 }
 
-impl RuleTracker<Ipv6Addr, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
-    pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
+impl RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
+    pub fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV6)
     }
 }
 
-impl<T> RuleTracker<T, LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>>
+impl<T> RuleTracker<T, LpmTrie<MapRefMut, <T as AsKey>::KeySize, RuleStore>>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone,
-    Cidr<T>: AsKey,
+    T: AsNum + Eq + Hash + Clone + AsKey + Normalize,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
-        let ebpf_store: LpmTrie<_, <Cidr<T> as AsKey>::KeySize, RuleStore> =
+        let ebpf_store: LpmTrie<_, <T as AsKey>::KeySize, RuleStore> =
             LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
         Ok(Self {
             rule_map: HashMap::new(),
@@ -149,19 +141,17 @@ where
 
 impl<T, U> RuleTracker<T, U>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + AsKey + AsOctets + Eq + Hash + Clone + Normalize + Contains,
     T::Octets: AsRef<[u8]>,
-    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+    U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
     pub fn add_rule(
         &mut self,
-        Rule {
+        RuleImpl {
             id,
             dest,
             port_range,
-        }: &Rule<T>,
+        }: &RuleImpl<T>,
     ) -> Result<()> {
         if !port_range_check(port_range) {
             return Err(Error::InvalidPort);
@@ -178,7 +168,7 @@ where
 
             let port_ranges = self
                 .rule_map
-                .entry((id, port_range.ports.proto, dest.clone()))
+                .entry((id, port_range.ports.proto, Normalized::new(dest.clone())))
                 .and_modify(|e| {
                     e.insert(port_range.clone());
                 })
@@ -197,11 +187,11 @@ where
 
     pub fn remove_rule(
         &mut self,
-        Rule {
+        RuleImpl {
             id,
             dest,
             port_range,
-        }: &Rule<T>,
+        }: &RuleImpl<T>,
     ) -> Result<()> {
         let port_range = PortRange {
             ports: port_range.clone().unwrap_or_default(),
@@ -213,7 +203,7 @@ where
             let id = id.unwrap_or(0);
             if let std::collections::hash_map::Entry::Occupied(_) = self
                 .rule_map
-                .entry((id, proto, dest.clone()))
+                .entry((id, proto, Normalized::new(dest.clone())))
                 .and_modify(|e| {
                     e.remove(&port_range);
                 })
@@ -234,18 +224,18 @@ where
             self.rule_map
                 .iter_mut()
                 .filter(|((k_id, k_proto, k_ip), _)| {
-                    *k_id == id && *k_proto == proto && port_range.origin.contains(k_ip)
+                    *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
                 })
         {
             v.remove(&port_range);
             if !v.is_empty() {
                 self.ebpf_store.insert(
-                    &k_ip.as_key(*k_id, *k_proto as u8),
+                    &k_ip.ip.as_key(*k_id, *k_proto as u8),
                     to_rule_store(v.clone()),
                 )?;
             } else {
                 self.ebpf_store
-                    .remove(&k_ip.as_key(*k_id, *k_proto as u8))?;
+                    .remove(&k_ip.ip.as_key(*k_id, *k_proto as u8))?;
             }
         }
         Ok(())
@@ -256,29 +246,32 @@ where
             self.rule_map
                 .iter_mut()
                 .filter(|((k_id, k_proto, k_ip), _)| {
-                    *k_id == id && *k_proto == proto && port_range.origin.contains(k_ip)
+                    *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
                 })
         {
             v.insert(port_range.clone());
             self.ebpf_store.insert(
-                &k_ip.as_key(*k_id, *k_proto as u8),
+                &k_ip.ip.as_key(*k_id, *k_proto as u8),
                 to_rule_store(v.clone()),
             )?;
         }
         Ok(())
     }
 
-    fn reverse_propagate(&mut self, cidr: &Cidr<T>, id: u32, proto: Protocol) -> Result<()> {
+    fn reverse_propagate(&mut self, cidr: &T, id: u32, proto: Protocol) -> Result<()> {
         let propagated_ranges: HashSet<_> = self
             .rule_map
             .iter()
             .filter(|((k_id, k_proto, k_ip), _)| {
-                *k_id == id && *k_proto == proto && k_ip.contains(cidr)
+                *k_id == id && *k_proto == proto && k_ip.ip.contains(cidr)
             })
             .flat_map(|(_, v)| v)
             .cloned()
             .collect();
-        if let Some(port_ranges) = self.rule_map.get_mut(&(id, proto, cidr.clone())) {
+        if let Some(port_ranges) =
+            self.rule_map
+                .get_mut(&(id, proto, Normalized::new(cidr.clone())))
+        {
             port_ranges.extend(propagated_ranges);
 
             self.ebpf_store.insert(
