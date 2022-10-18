@@ -1,6 +1,6 @@
 #![cfg(any(feature = "tokio", feature = "async_std"))]
 
-use crate::{Firewall, Result};
+use crate::Result;
 use std::ops::DerefMut;
 
 // This module could be expanded to be used with `PerfEventArray`

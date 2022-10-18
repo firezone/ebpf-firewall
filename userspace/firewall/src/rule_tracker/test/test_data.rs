@@ -17,48 +17,92 @@ use crate::{
     Protocol::Generic,
     Protocol::TCP,
     Protocol::UDP,
-    RuleTracker,
+    Rule, RuleTracker,
 };
 
 pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Addr, ()> {
-    let id = 0;
     let mut rule_tracker = RuleTracker::<Ipv4Addr, _>::new_test().unwrap();
 
     let cidr = "10.1.1.3/32".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 10..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=25, Generic).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(10..=20, Generic))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(15..=20, Generic))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(15..=25, Generic))
+        .unwrap();
     let cidr = "10.1.0.0/16".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 200..=500, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 12..=16, TCP).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(200..=500, UDP))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(12..=16, TCP))
+        .unwrap();
     let cidr = "10.1.1.3/32".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 18..=40, Generic).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(18..=40, Generic))
+        .unwrap();
     let cidr = "10.1.1.0/24".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 200..=800, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 999..=999, TCP).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(200..=800, UDP))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(999..=999, TCP))
+        .unwrap();
     let cidr = "10.1.0.0/16".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 6000..=8000, TCP).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(6000..=8000, TCP))
+        .unwrap();
     rule_tracker
 }
 
 pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Addr, ()> {
-    let id = 0;
     let mut rule_tracker = RuleTracker::<Ipv6Addr, _>::new_test().unwrap();
 
     let cidr = "fafa::1:0:0:3/128".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 10..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=20, Generic).unwrap();
-    rule_tracker.add_rule(id, cidr, 15..=25, Generic).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(10..=20, Generic))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(15..=20, Generic))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(15..=25, Generic))
+        .unwrap();
     let cidr = "fafa::/64".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 200..=500, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 12..=16, TCP).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(200..=500, UDP))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.with_range(12..=16, TCP))
+        .unwrap();
     let cidr = "fafa::1:0:0:3/128".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 18..=40, Generic).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(18..=40, Generic))
+        .unwrap();
     let cidr = "fafa::1:0:0:0/96".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 200..=800, UDP).unwrap();
-    rule_tracker.add_rule(id, cidr, 999..=999, TCP).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(200..=800, UDP))
+        .unwrap();
+    rule_tracker
+        .add_rule(&rule.clone().with_range(999..=999, TCP))
+        .unwrap();
     let cidr = "fafa::/64".parse().unwrap();
-    rule_tracker.add_rule(id, cidr, 6000..=8000, TCP).unwrap();
+    let rule = Rule::new(cidr);
+    rule_tracker
+        .add_rule(&rule.clone().with_range(6000..=8000, TCP))
+        .unwrap();
     rule_tracker
 }
 

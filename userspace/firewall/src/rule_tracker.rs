@@ -6,7 +6,6 @@ use std::{
     fmt::Debug,
     hash::Hash,
     net::{Ipv4Addr, Ipv6Addr},
-    ops::RangeInclusive,
 };
 
 use aya::{
@@ -29,8 +28,25 @@ where
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
-    pub ports: RangeInclusive<u16>,
+    pub ports: super::PortRange,
     pub origin: Cidr<T>,
+}
+
+impl<T> PortRange<T>
+where
+    T: AsNum + From<T::Num> + AsOctets + Clone,
+    T::Octets: AsRef<[u8]>,
+{
+    fn unfold(&self) -> Vec<Self> {
+        self.ports
+            .unfold()
+            .iter()
+            .map(|ports| PortRange {
+                ports: ports.clone(),
+                origin: self.origin.clone(),
+            })
+            .collect()
+    }
 }
 
 fn to_rule_store<T>(port_ranges: HashSet<PortRange<T>>) -> RuleStore
@@ -52,9 +68,9 @@ where
     T::Octets: AsRef<[u8]>,
 {
     let mut res = Vec::new();
-    port_ranges.sort_by_key(|p| p.ports.start());
+    port_ranges.sort_by_key(|p| p.ports.ports.start());
     if let Some(range) = port_ranges.first() {
-        res.push((*range.ports.start(), *range.ports.end()));
+        res.push((*range.ports.ports.start(), *range.ports.ports.end()));
     } else {
         return res;
     }
@@ -63,10 +79,10 @@ where
             .last_mut()
             .expect("should contain at least the first element of port_ranges");
 
-        if last_res.1 >= *range.ports.start() {
-            *last_res = (last_res.0, last_res.1.max(*range.ports.end()));
+        if last_res.1 >= *range.ports.ports.start() {
+            *last_res = (last_res.0, last_res.1.max(*range.ports.ports.end()));
         } else {
-            res.push((*range.ports.start(), *range.ports.end()));
+            res.push((*range.ports.ports.start(), *range.ports.ports.end()));
         }
     }
     res
@@ -147,30 +163,39 @@ where
             port_range,
         }: &Rule<T>,
     ) -> Result<()> {
-        if let Some(port_range) = port_range {
-            if port_range.proto == Protocol::Generic {
-                let res = self.add_rule_impl(
-                    id.unwrap_or(0),
-                    dest.clone(),
-                    port_range.ports.clone(),
-                    Protocol::TCP,
-                );
-                if res.is_ok() {
-                    return self.add_rule_impl(
-                        id.unwrap_or(0),
-                        *dest,
-                        port_range.ports,
-                        Protocol::UDP,
-                    );
-                } else {
-                    return res;
-                }
-            }
+        if !port_range_check(port_range) {
+            return Err(Error::InvalidPort);
         }
-        self.add_rule_impl(id.unwrap_or(0), cidr, ports, proto)
+
+        let port_range = PortRange {
+            ports: port_range.clone().unwrap_or_default(),
+            origin: dest.clone(),
+        };
+
+        for port_range in port_range.unfold() {
+            let proto = port_range.ports.proto;
+            let id = id.unwrap_or(0);
+
+            let port_ranges = self
+                .rule_map
+                .entry((id, port_range.ports.proto, dest.clone()))
+                .and_modify(|e| {
+                    e.insert(port_range.clone());
+                })
+                .or_insert_with(|| HashSet::from([port_range.clone()]));
+
+            self.ebpf_store.insert(
+                &dest.as_key(id, proto as u8),
+                to_rule_store(port_ranges.clone()),
+            )?;
+
+            self.reverse_propagate(&dest, id, proto)?;
+            self.propagate(port_range, id, proto)?;
+        }
+        Ok(())
     }
 
-    fn add_rule_impl(
+    pub fn remove_rule(
         &mut self,
         Rule {
             id,
@@ -178,70 +203,24 @@ where
             port_range,
         }: &Rule<T>,
     ) -> Result<()> {
-        let ports = ports.into();
-        if ports.contains(&0) && ports.len() > 1 {
-            return Err(Error::InvalidPort);
-        }
         let port_range = PortRange {
-            ports,
-            origin: cidr.clone(),
+            ports: port_range.clone().unwrap_or_default(),
+            origin: dest.clone(),
         };
 
-        let port_ranges = self
-            .rule_map
-            .entry((id, proto, cidr.clone()))
-            .and_modify(|e| {
-                e.insert(port_range.clone());
-            })
-            .or_insert_with(|| HashSet::from([port_range.clone()]));
-
-        self.ebpf_store.insert(
-            &cidr.as_key(id, proto as u8),
-            to_rule_store(port_ranges.clone()),
-        )?;
-
-        self.reverse_propagate(&cidr, id, proto)?;
-        self.propagate(port_range, id, proto)?;
-        Ok(())
-    }
-    pub fn remove_rule(
-        &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
-    ) -> Result<()> {
-        if proto == Protocol::Generic {
-            let res = self.remove_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
-            if res.is_ok() {
-                self.remove_rule_impl(id, cidr, ports, Protocol::UDP)
-            } else {
-                res
+        for port_range in port_range.unfold() {
+            let proto = port_range.ports.proto;
+            let id = id.unwrap_or(0);
+            if let std::collections::hash_map::Entry::Occupied(_) = self
+                .rule_map
+                .entry((id, proto, dest.clone()))
+                .and_modify(|e| {
+                    e.remove(&port_range);
+                })
+            {
+                self.propagate_removal(port_range, proto, id)?;
             }
-        } else {
-            self.remove_rule_impl(id, cidr, ports, proto)
         }
-    }
-
-    pub fn remove_rule_impl(
-        &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
-    ) -> Result<()> {
-        let port_range = PortRange {
-            ports: ports.into(),
-            origin: cidr.clone(),
-        };
-        if let std::collections::hash_map::Entry::Occupied(_) =
-            self.rule_map.entry((id, proto, cidr)).and_modify(|e| {
-                e.remove(&port_range);
-            })
-        {
-            self.propagate_removal(port_range, proto, id)?;
-        }
-
         Ok(())
     }
 
@@ -308,5 +287,12 @@ where
             )?;
         }
         Ok(())
+    }
+}
+
+fn port_range_check(port_range: &Option<super::PortRange>) -> bool {
+    match port_range {
+        Some(range) => range.valid_range(),
+        None => true,
     }
 }

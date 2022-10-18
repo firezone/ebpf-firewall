@@ -8,7 +8,7 @@ use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Cidr},
     Protocol::{Generic, UDP},
-    Result, RuleTracker,
+    Result, Rule, RuleTracker,
 };
 
 use core::fmt::Debug;
@@ -60,7 +60,7 @@ fn add_ipv4_rule_works() {
 fn port_0_match_all_ip_v4() {
     let mut rule_tracker = test_data::prepare_ipv4();
     rule_tracker
-        .add_rule(0, "10.1.1.0/24".parse().unwrap(), 0..=0, Generic)
+        .add_rule(&Rule::new("10.1.1.0/24".parse().unwrap()).with_range(0..=0, Generic))
         .unwrap();
 
     let test_run = TestRun::with(rule_tracker);
@@ -80,7 +80,7 @@ fn port_0_match_all_ip_v4() {
 fn remove_ipv4_rule_works() {
     let mut rule_tracker = test_data::prepare_ipv4();
     rule_tracker
-        .remove_rule(0, "10.1.1.0/24".parse().unwrap(), 200..=800, UDP)
+        .remove_rule(&Rule::new("10.1.1.0/24".parse().unwrap()).with_range(200..=800, UDP))
         .unwrap();
 
     let test_run = TestRun::with(rule_tracker);
@@ -100,7 +100,7 @@ fn add_ipv6_rule_works() {
 fn port_0_match_all_ip_v6() {
     let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
-        .add_rule(0, "fafa::1:0:0:0/96".parse().unwrap(), 0..=0, Generic)
+        .add_rule(&Rule::new("fafa::1:0:0:0/96".parse().unwrap()).with_range(0..=0, Generic))
         .unwrap();
 
     let test_run = TestRun::with(rule_tracker);
@@ -120,7 +120,7 @@ fn port_0_match_all_ip_v6() {
 fn remove_ipv6_rule_works() {
     let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
-        .remove_rule(0, "fafa::1:0:0:0/96".parse().unwrap(), 200..=800, UDP)
+        .remove_rule(&Rule::new("fafa::1:0:0:0/96".parse().unwrap()).with_range(200..=800, UDP))
         .unwrap();
 
     let test_run = TestRun::with(rule_tracker);
