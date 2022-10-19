@@ -218,6 +218,12 @@ pub enum Protocol {
     Generic = GENERIC_PROTO,
 }
 
+impl Default for Protocol {
+    fn default() -> Self {
+        Self::Generic
+    }
+}
+
 impl Protocol {
     fn unfold(&self) -> Vec<Self> {
         if *self == Protocol::Generic {
