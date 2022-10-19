@@ -1,30 +1,28 @@
-/*
-*/
-
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
-    net::{AddrParseError, Ipv4Addr, Ipv6Addr},
     str::FromStr,
 };
 
+use ipnet::{Ipv4Net, Ipv6Net};
+
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum},
+    cidr::{AsKey, AsNum, Normalize, Normalized},
     rule_tracker::to_rule_store,
     Protocol,
     Protocol::Generic,
     Protocol::TCP,
     Protocol::UDP,
-    Rule, RuleTracker,
+    RuleImpl, RuleTracker,
 };
 
-pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Addr, ()> {
-    let mut rule_tracker = RuleTracker::<Ipv4Addr, _>::new_test().unwrap();
+pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Net, ()> {
+    let mut rule_tracker = RuleTracker::<Ipv4Net, _>::new_test().unwrap();
 
     let cidr = "10.1.1.3/32".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(10..=20, Generic))
         .unwrap();
@@ -35,7 +33,7 @@ pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Addr, ()> {
         .add_rule(&rule.clone().with_range(15..=25, Generic))
         .unwrap();
     let cidr = "10.1.0.0/16".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(200..=500, UDP))
         .unwrap();
@@ -43,12 +41,12 @@ pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Addr, ()> {
         .add_rule(&rule.clone().with_range(12..=16, TCP))
         .unwrap();
     let cidr = "10.1.1.3/32".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(18..=40, Generic))
         .unwrap();
     let cidr = "10.1.1.0/24".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(200..=800, UDP))
         .unwrap();
@@ -56,18 +54,18 @@ pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Addr, ()> {
         .add_rule(&rule.clone().with_range(999..=999, TCP))
         .unwrap();
     let cidr = "10.1.0.0/16".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(6000..=8000, TCP))
         .unwrap();
     rule_tracker
 }
 
-pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Addr, ()> {
-    let mut rule_tracker = RuleTracker::<Ipv6Addr, _>::new_test().unwrap();
+pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Net, ()> {
+    let mut rule_tracker = RuleTracker::<Ipv6Net, _>::new_test().unwrap();
 
     let cidr = "fafa::1:0:0:3/128".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(10..=20, Generic))
         .unwrap();
@@ -78,7 +76,7 @@ pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Addr, ()> {
         .add_rule(&rule.clone().with_range(15..=25, Generic))
         .unwrap();
     let cidr = "fafa::/64".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(200..=500, UDP))
         .unwrap();
@@ -86,12 +84,12 @@ pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Addr, ()> {
         .add_rule(&rule.with_range(12..=16, TCP))
         .unwrap();
     let cidr = "fafa::1:0:0:3/128".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(18..=40, Generic))
         .unwrap();
     let cidr = "fafa::1:0:0:0/96".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(200..=800, UDP))
         .unwrap();
@@ -99,14 +97,14 @@ pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Addr, ()> {
         .add_rule(&rule.clone().with_range(999..=999, TCP))
         .unwrap();
     let cidr = "fafa::/64".parse().unwrap();
-    let rule = Rule::new(cidr);
+    let rule = RuleImpl::new(cidr);
     rule_tracker
         .add_rule(&rule.clone().with_range(6000..=8000, TCP))
         .unwrap();
     rule_tracker
 }
 
-pub(crate) fn prepared_expect_v6(test_run: TestRun<Ipv6Addr>) -> TestRun<Ipv6Addr> {
+pub(crate) fn prepared_expect_v6(test_run: TestRun<Ipv6Net>) -> TestRun<Ipv6Net> {
     test_run
         .expect_true(
             "fafa::1:0:0:3/128",
@@ -151,7 +149,7 @@ pub(crate) fn prepared_expect_v6(test_run: TestRun<Ipv6Addr>) -> TestRun<Ipv6Add
         )
 }
 
-pub(crate) fn prepared_expect_v4(test_run: TestRun<Ipv4Addr>) -> TestRun<Ipv4Addr> {
+pub(crate) fn prepared_expect_v4(test_run: TestRun<Ipv4Net>) -> TestRun<Ipv4Net> {
     test_run
         .expect_true(
             "10.1.1.3/32",
@@ -200,7 +198,7 @@ type Port = (Protocol, u16);
 #[derive(Debug)]
 pub(crate) struct TestRun<T>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone + AsOctets + AsKey,
+    T: AsNum + Eq + Hash + Clone + AsOctets + AsKey + Normalize,
     T::Octets: AsRef<[u8]>,
 {
     rule_tracker: RuleTracker<T, ()>,
@@ -211,21 +209,24 @@ where
 impl<T> TestRun<T>
 where
     T: AsNum
-        + From<T::Num>
         + Eq
         + Hash
         + Clone
         + AsOctets
-        + FromStr<Err = AddrParseError>
+        + FromStr<Err = ipnet::AddrParseError>
         + AsKey
-        + Debug,
+        + Debug
+        + Normalize,
     T::Octets: AsRef<[u8]>,
 {
     pub(crate) fn run(&self) {
         println!("{self:#?}");
         for ((id, cidr), ports) in self.expect_true.clone() {
             for (proto, port) in ports {
-                let rule_map = self.rule_tracker.rule_map.get(&(id, proto, cidr.clone()));
+                let rule_map =
+                    self.rule_tracker
+                        .rule_map
+                        .get(&(id, proto, Normalized::new(cidr.clone())));
                 assert!(
                     rule_map.is_some(),
                     "rule_map for id {id} cidr {cidr:?} protocol {proto:?} port {port:?} is none"
@@ -240,7 +241,10 @@ where
 
         for ((id, cidr), ports) in self.expect_false.clone() {
             for (proto, port) in ports {
-                let rule_map = self.rule_tracker.rule_map.get(&(id, proto, cidr.clone()));
+                let rule_map =
+                    self.rule_tracker
+                        .rule_map
+                        .get(&(id, proto, Normalized::new(cidr.clone())));
                 if !rule_map.is_none() {
                     let rule_store = to_rule_store(rule_map.unwrap().clone());
                     assert!(

@@ -95,7 +95,7 @@ impl Firewall {
         }
     }
 
-    pub fn add_id_v4(&mut self, ip: IpNet, id: u32) -> Result<()> {
+    pub fn add_id(&mut self, ip: IpNet, id: u32) -> Result<()> {
         match ip {
             IpNet::V4(ip) => self.classifier_v4.insert(ip, id),
             IpNet::V6(ip) => self.classifier_v6.insert(ip, id),
@@ -128,6 +128,14 @@ pub struct RuleImpl<T> {
 }
 
 impl<T> RuleImpl<T> {
+    fn new(dest: T) -> Self {
+        Self {
+            dest,
+            id: None,
+            port_range: None,
+        }
+    }
+
     fn with_id(self, id: u32) -> Self {
         Self {
             id: Some(id),
@@ -149,16 +157,8 @@ impl<T> RuleImpl<T> {
 impl Rule {
     pub fn new(dest: IpNet) -> Self {
         match dest {
-            IpNet::V4(dest) => Rule::V4(RuleImpl {
-                dest,
-                id: None,
-                port_range: None,
-            }),
-            IpNet::V6(dest) => Rule::V6(RuleImpl {
-                dest,
-                id: None,
-                port_range: None,
-            }),
+            IpNet::V4(dest) => Rule::V4(RuleImpl::new(dest)),
+            IpNet::V6(dest) => Rule::V6(RuleImpl::new(dest)),
         }
     }
 

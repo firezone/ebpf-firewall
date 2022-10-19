@@ -191,7 +191,7 @@ mod test {
         assert_eq!(x.data, y.data);
 
         let actual_len = x.prefix_len;
-        let expected_len = y.p6refix_len;
+        let expected_len = y.prefix_len;
         assert_eq!(actual_len, expected_len);
     }
 
