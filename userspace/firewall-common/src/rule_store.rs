@@ -24,6 +24,12 @@ pub enum Action {
     Reject = TC_ACT_SHOT,
 }
 
+impl Default for Action {
+    fn default() -> Self {
+        Self::Reject
+    }
+}
+
 const START_MASK: u32 = 0x0000_FFFF;
 const END_MASK: u32 = 0xFFFF_0000;
 const END_FIRST_BIT: u32 = 16;
