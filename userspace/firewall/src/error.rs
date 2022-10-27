@@ -37,4 +37,7 @@ pub enum Error {
     /// Used 0 as id number.
     #[error("Id number is not valid, must be greater than 0")]
     InvalidId,
+    /// Id doesn't exists in the classifier.
+    #[error("Id not stored in classifier")]
+    NotExistingId,
 }

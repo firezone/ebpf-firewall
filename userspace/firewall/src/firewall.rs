@@ -117,6 +117,13 @@ impl Firewall {
         }
     }
 
+    /// Given the id removes all associated IPs
+    pub fn remove_by_id(&mut self, id: u32) -> Result<()> {
+        self.classifier_v4.remove_by_id(id)?;
+        self.classifier_v6.remove_by_id(id)?;
+        Ok(())
+    }
+
     /// Starts logging incoming packets to `info` level fo the [tracing] crate.
     pub fn start_logging(&mut self) -> Result<()> {
         self.logger.init()
