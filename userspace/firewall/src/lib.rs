@@ -8,7 +8,7 @@ mod logger;
 mod rule;
 mod rule_tracker;
 
-pub use firewall::Firewall;
+pub use crate::firewall::Firewall;
 pub use firewall_common::Action;
 
 pub use error::Error;
