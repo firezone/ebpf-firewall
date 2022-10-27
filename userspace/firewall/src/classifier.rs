@@ -4,7 +4,7 @@ use aya::{
 };
 use ipnet::{Ipv4Net, Ipv6Net};
 
-use crate::{as_octet::AsOctets, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
+use crate::{as_octet::AsOctets, Error, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
 
 pub struct Classifier<T: AsOctets>
 where
@@ -33,6 +33,9 @@ where
     T::Octets: Pod,
 {
     pub fn insert(&mut self, ip: T, id: u32) -> Result<()> {
+        if id == 0 {
+            return Err(Error::InvalidId);
+        }
         self.ebpf_map.insert(ip.as_octets(), id, 0)?;
         Ok(())
     }

@@ -16,11 +16,14 @@ pub const GENERIC_PROTO: u8 = 0xFF;
 const TC_ACT_OK: i32 = 0;
 const TC_ACT_SHOT: i32 = 2;
 
+/// Action to set for the default configuration.
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "user", derive(Debug, Hash))]
 pub enum Action {
+    /// Accept packets.
     Accept = TC_ACT_OK,
+    /// Rejecti packets.
     Reject = TC_ACT_SHOT,
 }
 

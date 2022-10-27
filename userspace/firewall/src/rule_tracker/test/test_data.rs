@@ -10,12 +10,10 @@ use ipnet::{Ipv4Net, Ipv6Net};
 use crate::{
     as_octet::AsOctets,
     cidr::{AsKey, AsNum, Normalize, Normalized},
+    rule::RuleImpl,
     rule_tracker::to_rule_store,
-    Protocol,
-    Protocol::Generic,
-    Protocol::TCP,
-    Protocol::UDP,
-    RuleImpl, RuleTracker,
+    rule_tracker::RuleTracker,
+    Protocol::{self, Generic, TCP, UDP},
 };
 
 pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Net, ()> {
@@ -231,7 +229,7 @@ where
                     rule_map.is_some(),
                     "rule_map for id {id} cidr {cidr:?} protocol {proto:?} port {port:?} is none"
                 );
-                let rule_store = to_rule_store(rule_map.unwrap().clone());
+                let rule_store = to_rule_store(rule_map.unwrap()).unwrap();
                 assert!(
                     rule_store.lookup(port),
                     "port {port} not contained in {cidr:?} with proto {proto:?} for id {id:?}"
@@ -246,7 +244,7 @@ where
                         .rule_map
                         .get(&(id, proto, Normalized::new(cidr.clone())));
                 if !rule_map.is_none() {
-                    let rule_store = to_rule_store(rule_map.unwrap().clone());
+                    let rule_store = to_rule_store(rule_map.unwrap()).unwrap();
                     assert!(
                         !rule_store.lookup(port),
                         "port {port} is contained in {cidr:#?} with proto {proto:?} for id {id:?}"

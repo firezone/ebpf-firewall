@@ -51,6 +51,7 @@ impl RuleStore {
                 right = mid;
             }
             size = right - left;
+
             #[cfg(not(feature = "user"))]
             {
                 i += 1;
