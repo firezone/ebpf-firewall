@@ -3,7 +3,7 @@ use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::ops::RangeInclusive;
 
 // TODO: Use a builder pattern to hide variant visisibility.
-/// Rule for the [Firewall].
+/// Rule for the [Firewall](crate::Firewall).
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Rule {
     V4(RuleImpl<Ipv4Net>),
@@ -47,6 +47,13 @@ impl<T> RuleImpl<T> {
 
 impl Rule {
     /// Creates a new `Rule` with a given destination.
+    ///
+    /// # Example
+    /// ```
+    /// # use firewall::Rule;
+    /// // Rule that matches 10.5.6.0/23
+    /// Rule::new("10.5.6.0/23".parse().unwrap());
+    /// ```
     pub fn new(dest: IpNet) -> Self {
         match dest {
             IpNet::V4(dest) => Rule::V4(RuleImpl::new(dest)),
@@ -54,7 +61,23 @@ impl Rule {
         }
     }
 
-    /// Gives the source id for the `Rule`.
+    /// Gives the source ID for the `Rule`.
+    ///
+    /// For a rule with an ID to match any packet, first you need to associate an IP or multiple IPs with that id.
+    /// Then, the rule will match only packets with a source IP that has been associated with that ID.
+    ///
+    /// Note that this can be updated on the fly, adding or removing ids to a firewall will affect existing Rules.
+    ///
+    /// To associate an ID with an IP take a look at [add_id](crate::Firewall::add_id).
+    ///
+    /// IDs can't be 0 since that's used internally as the rule with no-id.
+    ///
+    /// # Example
+    /// ```
+    /// # use firewall::Rule;
+    /// // Rule that matches a source id
+    /// Rule::new("10.5.6.1/32".parse().unwrap()).with_id(10);
+    /// ```
     pub fn with_id(self, id: u32) -> Self {
         match self {
             Rule::V4(r) => Rule::V4(r.with_id(id)),
@@ -63,6 +86,19 @@ impl Rule {
     }
 
     /// Sets a port range for the `Rule`.
+    ///
+    /// The range need to be valid to be accepted when adding the rule to the [Firewall](crate::Firewall).
+    ///
+    /// A rule with [Protocol::Generic] will match both UDP and TCP.
+    ///
+    /// # Example
+    /// ```
+    /// # use firewall::Rule;
+    /// // Rule that matches a source id
+    /// # use firewall::{Protocol, Firewall};
+    /// Rule::new("10.5.6.1/32".parse().unwrap()).with_range(100..=433, Protocol::UDP);
+    /// ```
+    ///  
     pub fn with_range(self, range: RangeInclusive<u16>, proto: Protocol) -> Self {
         match self {
             Rule::V4(r) => Rule::V4(r.with_range(range, proto)),
@@ -103,7 +139,7 @@ impl PortRange {
     }
 }
 
-/// Struct with Protocol numbers for [Rule]s port-ranges.
+/// Struct with Protocol types to specify what a given port range affects when creating a [Rule] with [with_range](Rule::with_range).
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Protocol {
