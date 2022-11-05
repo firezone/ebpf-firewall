@@ -1,15 +1,15 @@
 #![cfg(feature = "user")]
 
-use crate::rule_store::{RuleStore, MAX_RULES};
+use crate::rule_store::{RuleStore, MAX_RANGES};
 use thiserror::Error;
 
 use super::new_rule;
 
 impl RuleStore {
     pub fn new(ports: &[(u16, u16)]) -> Result<RuleStore, RuleStoreError> {
-        if (ports.len() as usize) <= MAX_RULES {
+        if (ports.len() as usize) <= MAX_RANGES {
             if Self::wellformed(ports) {
-                let mut rules = [0u32; MAX_RULES];
+                let mut rules = [0u32; MAX_RANGES];
                 let rule_len = ports.len();
                 rules[..rule_len]
                     .copy_from_slice(&ports.iter().map(|p| new_rule(p.0, p.1)).collect::<Vec<_>>());

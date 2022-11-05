@@ -4,8 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["maxranges256"]
 user = ["aya", "thiserror"]
+maxranges1024 = []
+maxranges512 = []
+maxranges256 = []
+maxranges128 = []
+maxranges64 = []
+maxranges32 = []
+maxranges16 = []
 
 [dependencies]
 strum = { version = "0.24", default-features = false }

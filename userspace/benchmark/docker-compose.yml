@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  wireguard_server:
+    build: .
+    image: fw-benchmark:latest
+    volumes:
+      - ../target/release/examples/benchmark:/benchmark
+      - ./peers/:/config/:rw
+    environment:
+      - PEERS=2
+      - SERVERURL=172.8.0.2
+      - LOG_CONFS=false
+      - PUID=1000
+      - PGID=1000
+      - RUST_LOG=trace
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    # Not sure what capabilities are required to create eBPF maps
+    privileged: true
+    networks:
+      internal:
+        ipv4_address: 172.8.0.100
+    command: /benchmark --iface wg0
+
+  peer1:
+    image: fw-benchmark:latest
+    volumes:
+      - ./peers/peer1/peer1.conf:/config/wg0.conf
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+    networks:
+      - internal
+    command: iperf3 -s -B 10.13.13.2
+    #command: ping 10.13.13.3
+
+  peer2:
+    image: fw-benchmark:latest
+    volumes:
+      - ./peers/peer2/peer2.conf:/config/wg0.conf
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+    networks:
+      - internal
+    command: iperf3 -c 10.13.13.2 -b 1G
+    #command: ping 10.13.13.2
+
+networks:
+  internal:
+    ipam:
+      config:
+        - subnet: 172.8.0.0/16

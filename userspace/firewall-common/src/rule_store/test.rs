@@ -6,7 +6,7 @@ use crate::{
 };
 use test_case::test_case;
 
-use super::MAX_RULES;
+use super::MAX_RANGES;
 
 #[test_case(4, true)]
 #[test_case(5, true)]
@@ -45,7 +45,7 @@ fn port_0_matches_all(port: u16, is_contained: bool) {
 
 #[test]
 fn test_exhausted_error() {
-    let ports: Vec<_> = (0..(MAX_RULES + 1) as u16).map(|i| (i, i)).collect();
+    let ports: Vec<_> = (0..(MAX_RANGES + 1) as u16).map(|i| (i, i)).collect();
     let rule_store = RuleStore::new(&ports[..]);
     assert!(rule_store.is_err());
     assert_eq!(rule_store.unwrap_err(), RuleStoreError::Exhausted);
@@ -53,7 +53,7 @@ fn test_exhausted_error() {
 
 #[test]
 fn test_struct_alignment() {
-    assert_eq!(core::mem::size_of::<RuleStore>(), (MAX_RULES * 4) + 4);
+    assert_eq!(core::mem::size_of::<RuleStore>(), (MAX_RANGES * 4) + 4);
 }
 
 #[test_case(10, 20)]
