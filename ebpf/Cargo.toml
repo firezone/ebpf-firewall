@@ -10,7 +10,14 @@ memoffset = "0.6"
 strum = { version = "0.24", default-features = false }
 
 [features]
+default = ["rules256"]
 wireguard = []
+rules1024 = []
+rules512 = []
+rules256 = []
+rules128 = []
+rules64 = []
+rules32 = []
 
 [[bin]]
 name = "firewall-ebpf"

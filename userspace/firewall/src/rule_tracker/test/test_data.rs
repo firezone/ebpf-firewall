@@ -200,8 +200,8 @@ where
     T::Octets: AsRef<[u8]>,
 {
     rule_tracker: RuleTracker<T, ()>,
-    expect_true: HashMap<(u32, T), HashSet<Port>>,
-    expect_false: HashMap<(u32, T), HashSet<Port>>,
+    expect_true: HashMap<(u128, T), HashSet<Port>>,
+    expect_false: HashMap<(u128, T), HashSet<Port>>,
 }
 
 impl<T> TestRun<T>

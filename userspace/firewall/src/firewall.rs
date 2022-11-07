@@ -131,7 +131,7 @@ impl Firewall {
         }
     }
 
-    /// Associates an `id` which is any `u32` except for 0 with a given IP.
+    /// Associates an `id` which is any `u128` except for 0 with a given IP.
     ///
     /// Rules with the `id` will match only for source ips associated with that id.
     ///
@@ -147,7 +147,7 @@ impl Firewall {
     /// let rule = Rule::new("10.0.1.0/24".parse().unwrap()).with_id(1);
     /// fw.add_rule(&rule).unwrap();
     /// ```
-    pub fn add_id(&mut self, ip: IpNet, id: u32) -> Result<()> {
+    pub fn add_id(&mut self, ip: IpNet, id: u128) -> Result<()> {
         match ip {
             IpNet::V4(ip) => self.classifier_v4.insert(ip, id),
             IpNet::V6(ip) => self.classifier_v6.insert(ip, id),
@@ -181,7 +181,7 @@ impl Firewall {
     /// // Removes both 10.0.0.5 and 10.0.0.6
     /// fw.remove_by_id(1).unwrap();
     /// ```
-    pub fn remove_by_id(&mut self, id: u32) -> Result<()> {
+    pub fn remove_by_id(&mut self, id: u128) -> Result<()> {
         self.classifier_v4.remove_by_id(id)?;
         self.classifier_v6.remove_by_id(id)?;
         Ok(())

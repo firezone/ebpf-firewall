@@ -17,13 +17,25 @@ use strum::EnumCount;
 
 #[allow(clippy::all)]
 mod bindings;
-use bindings::iphdr;
 
-use core::mem;
+use core::{char::MAX, mem};
 use firewall_common::{ConfigOpt, PacketLog, RuleStore};
 use memoffset::offset_of;
 
-use crate::bindings::{ipv6hdr, tcphdr, udphdr};
+use crate::bindings::{iphdr, ipv6hdr, tcphdr, udphdr};
+
+#[cfg(feature = "rules1024")]
+const MAX_NUMBER_OF_RULES: u32 = 1024;
+#[cfg(feature = "rules512")]
+const MAX_NUMBER_OF_RULES: u32 = 512;
+#[cfg(feature = "rules256")]
+const MAX_NUMBER_OF_RULES: u32 = 256;
+#[cfg(feature = "rules128")]
+const MAX_NUMBER_OF_RULES: u32 = 128;
+#[cfg(feature = "rules64")]
+const MAX_NUMBER_OF_RULES: u32 = 64;
+#[cfg(feature = "rules32")]
+const MAX_NUMBER_OF_RULES: u32 = 32;
 
 // Note: I wish we could use const values as map names
 // but alas! this is not supported yet https://github.com/rust-lang/rust/issues/52393
@@ -34,20 +46,20 @@ static mut EVENTS: PerfEventArray<PacketLog> =
     PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
 
 #[map(name = "SOURCE_ID_IPV4")]
-static mut SOURCE_ID_IPV4: HashMap<[u8; 4], u32> =
-    HashMap::<[u8; 4], u32>::with_max_entries(1024, 0);
+static mut SOURCE_ID_IPV4: HashMap<[u8; 4], u128> =
+    HashMap::<[u8; 4], u128>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV4")]
-static mut RULE_MAP_IPV4: LpmTrie<[u8; 9], RuleStore> =
-    LpmTrie::<[u8; 9], RuleStore>::with_max_entries(10_000, BPF_F_NO_PREALLOC);
+static mut RULE_MAP_IPV4: LpmTrie<[u8; 21], RuleStore> =
+    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(MAX_NUMBER_OF_RULES, BPF_F_NO_PREALLOC);
 
 #[map(name = "SOURCE_ID_IPV6")]
-static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
-    HashMap::<[u8; 16], u32>::with_max_entries(1024, 0);
+static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u128> =
+    HashMap::<[u8; 16], u128>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV6")]
-static mut RULE_MAP_IPV6: LpmTrie<[u8; 21], RuleStore> =
-    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(10_000, BPF_F_NO_PREALLOC);
+static mut RULE_MAP_IPV6: LpmTrie<[u8; 33], RuleStore> =
+    LpmTrie::<[u8; 33], RuleStore>::with_max_entries(MAX_NUMBER_OF_RULES, BPF_F_NO_PREALLOC);
 
 // For now this just configs the default action
 // However! We can use this eventually to share more runtime configs
@@ -86,7 +98,7 @@ unsafe fn try_ebpf_firewall(ctx: TcContext) -> Result<i32, i64> {
 unsafe fn process<const N: usize, const M: usize>(
     ctx: TcContext,
     version: u8,
-    source_map: &HashMap<[u8; N], u32>,
+    source_map: &HashMap<[u8; N], u128>,
     rule_map: &LpmTrie<[u8; M], RuleStore>,
 ) -> Result<i32, i64> {
     let (source, dest, proto) = load_ntw_headers(&ctx, version)?;
@@ -149,15 +161,15 @@ fn as_log_array<const N: usize>(from: [u8; N]) -> [u8; 16] {
 }
 
 unsafe fn source_class<const N: usize>(
-    source_map: &HashMap<[u8; N], u32>,
+    source_map: &HashMap<[u8; N], u128>,
     address: [u8; N],
-) -> Option<[u8; 4]> {
+) -> Option<[u8; 16]> {
     // Race condition if ip changes group?
-    source_map.get(&address).map(|x| u32::to_be_bytes(*x))
+    source_map.get(&address).map(|x| u128::to_be_bytes(*x))
 }
 
 fn get_action<const N: usize, const M: usize>(
-    group: Option<[u8; 4]>,
+    group: Option<[u8; 16]>,
     address: [u8; N],
     rule_map: &LpmTrie<[u8; M], RuleStore>,
     port: u16,
@@ -198,7 +210,7 @@ fn is_stored(rule_store: &Option<&RuleStore>, port: u16) -> bool {
 }
 
 fn get_key<const N: usize, const M: usize>(
-    group: Option<[u8; 4]>,
+    group: Option<[u8; 16]>,
     proto: u8,
     address: [u8; N],
 ) -> [u8; M] {

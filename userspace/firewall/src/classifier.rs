@@ -12,8 +12,8 @@ pub struct Classifier<T: AsOctets>
 where
     T::Octets: Pod + Eq + Hash,
 {
-    ebpf_map: HashMap<MapRefMut, T::Octets, u32>,
-    userland_map: std::collections::HashMap<u32, HashSet<T::Octets>>,
+    ebpf_map: HashMap<MapRefMut, T::Octets, u128>,
+    userland_map: std::collections::HashMap<u128, HashSet<T::Octets>>,
 }
 
 pub(crate) type ClassifierV6 = Classifier<Ipv6Net>;
@@ -35,7 +35,7 @@ impl<T: AsOctets> Classifier<T>
 where
     T::Octets: Pod + Hash + Eq,
 {
-    pub fn insert(&mut self, ip: T, id: u32) -> Result<()> {
+    pub fn insert(&mut self, ip: T, id: u128) -> Result<()> {
         if id == 0 {
             return Err(Error::InvalidId);
         }
@@ -67,7 +67,7 @@ where
         Ok(())
     }
 
-    pub fn remove_by_id(&mut self, id: u32) -> Result<()> {
+    pub fn remove_by_id(&mut self, id: u128) -> Result<()> {
         let ips = self.userland_map.get(&id).ok_or(Error::NotExistingId)?;
         for ip in ips {
             self.ebpf_map.remove(ip)?;

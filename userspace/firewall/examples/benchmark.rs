@@ -44,7 +44,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let ip = u32::from(ip) + i;
         let ip = Ipv4Addr::from(ip);
 
-        firewall.add_id(IpNet::new(ip.into(), 32).unwrap(), i)?;
+        firewall.add_id(IpNet::new(ip.into(), 32).unwrap(), i.into())?;
     }
 
     for i in (1..10).step_by(2) {

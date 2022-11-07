@@ -13,7 +13,7 @@ pub enum Rule {
 #[doc(hidden)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RuleImpl<T> {
-    pub(crate) id: Option<u32>,
+    pub(crate) id: Option<u128>,
     pub(crate) dest: T,
     pub(crate) port_range: Option<PortRange>,
 }
@@ -27,7 +27,7 @@ impl<T> RuleImpl<T> {
         }
     }
 
-    fn with_id(self, id: u32) -> Self {
+    fn with_id(self, id: u128) -> Self {
         Self {
             id: Some(id),
             ..self
@@ -78,7 +78,7 @@ impl Rule {
     /// // Rule that matches a source id
     /// Rule::new("10.5.6.1/32".parse().unwrap()).with_id(10);
     /// ```
-    pub fn with_id(self, id: u32) -> Self {
+    pub fn with_id(self, id: u128) -> Self {
         match self {
             Rule::V4(r) => Rule::V4(r.with_id(id)),
             Rule::V6(r) => Rule::V6(r.with_id(id)),

@@ -88,8 +88,8 @@ where
     res
 }
 
-pub(crate) type RuleTrackerV4 = RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 9], RuleStore>>;
-pub(crate) type RuleTrackerV6 = RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>>;
+pub(crate) type RuleTrackerV4 = RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>>;
+pub(crate) type RuleTrackerV6 = RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 33], RuleStore>>;
 
 pub(crate) struct RuleTracker<T, U>
 where
@@ -97,7 +97,7 @@ where
     T::Octets: AsRef<[u8]>,
     U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
-    rule_map: HashMap<(u32, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
+    rule_map: HashMap<(u128, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
     ebpf_store: U,
 }
 
@@ -114,13 +114,13 @@ where
     }
 }
 
-impl RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 9], RuleStore>> {
+impl RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
     pub(crate) fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV4)
     }
 }
 
-impl RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
+impl RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 33], RuleStore>> {
     pub(crate) fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV6)
     }
@@ -203,7 +203,7 @@ where
     fn check_range_len(
         &self,
         port_range: &PortRange<T>,
-        id: u32,
+        id: u128,
         dest: &T,
     ) -> std::result::Result<(), RuleStoreError> {
         if let Some(port_ranges) =
@@ -250,7 +250,7 @@ where
         &mut self,
         port_range: PortRange<T>,
         proto: Protocol,
-        id: u32,
+        id: u128,
     ) -> Result<()> {
         for ((k_id, k_proto, k_ip), v) in
             self.rule_map
@@ -273,14 +273,14 @@ where
         Ok(())
     }
 
-    fn propagate(&mut self, port_range: PortRange<T>, id: u32, proto: Protocol) -> Result<()> {
+    fn propagate(&mut self, port_range: PortRange<T>, id: u128, proto: Protocol) -> Result<()> {
         self.propagate_impl(port_range, id, proto, Method::Modify)
     }
 
     fn propagate_check(
         &mut self,
         port_range: PortRange<T>,
-        id: u32,
+        id: u128,
         proto: Protocol,
     ) -> Result<()> {
         self.propagate_impl(port_range, id, proto, Method::Check)
@@ -289,7 +289,7 @@ where
     fn propagate_impl(
         &mut self,
         port_range: PortRange<T>,
-        id: u32,
+        id: u128,
         proto: Protocol,
         method: Method,
     ) -> Result<()> {
@@ -318,18 +318,18 @@ where
         Ok(())
     }
 
-    fn reverse_propagate(&mut self, cidr: &T, id: u32, proto: Protocol) -> Result<()> {
+    fn reverse_propagate(&mut self, cidr: &T, id: u128, proto: Protocol) -> Result<()> {
         self.reverse_propagate_impl(cidr, id, proto, Method::Modify)
     }
 
-    fn reverse_propagate_check(&mut self, cidr: &T, id: u32, proto: Protocol) -> Result<()> {
+    fn reverse_propagate_check(&mut self, cidr: &T, id: u128, proto: Protocol) -> Result<()> {
         self.reverse_propagate_impl(cidr, id, proto, Method::Modify)
     }
 
     fn reverse_propagate_impl(
         &mut self,
         cidr: &T,
-        id: u32,
+        id: u128,
         proto: Protocol,
         method: Method,
     ) -> Result<()> {
@@ -355,7 +355,12 @@ where
         Ok(())
     }
 
-    fn get_overlapping_parents(&self, cidr: &T, id: u32, proto: Protocol) -> HashSet<PortRange<T>> {
+    fn get_overlapping_parents(
+        &self,
+        cidr: &T,
+        id: u128,
+        proto: Protocol,
+    ) -> HashSet<PortRange<T>> {
         self.rule_map
             .iter()
             .filter(|((k_id, k_proto, k_ip), _)| {
