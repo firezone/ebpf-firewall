@@ -62,7 +62,7 @@ pub async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayB
             // SAFETY: read_event makes sure buf is initialized to a Packetlog
             // Also Packetlog is Copy
             .map(|buf| unsafe { buf_to_packet(buf) })
-            .for_each(|data| tracing::info!("Ingress Packet: {data}"));
+            .for_each(|data| tracing::info!(target: "packet_log", "Ingress Packet: {data}"));
     }
 }
 

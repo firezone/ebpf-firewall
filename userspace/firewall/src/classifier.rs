@@ -8,11 +8,13 @@ use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{as_octet::AsOctets, Error, Result, SOURCE_ID_IPV4, SOURCE_ID_IPV6};
 
+type ID = [u8; 16];
+
 pub struct Classifier<T: AsOctets>
 where
     T::Octets: Pod + Eq + Hash,
 {
-    ebpf_map: HashMap<MapRefMut, T::Octets, u128>,
+    ebpf_map: HashMap<MapRefMut, T::Octets, ID>,
     userland_map: std::collections::HashMap<u128, HashSet<T::Octets>>,
 }
 
@@ -49,12 +51,12 @@ where
                 set.insert(ip.as_octets());
                 set
             });
-        self.ebpf_map.insert(ip.as_octets(), id, 0)?;
+        self.ebpf_map.insert(ip.as_octets(), id.to_le_bytes(), 0)?;
         Ok(())
     }
 
     pub fn remove(&mut self, ip: &T) -> Result<()> {
-        let id = self.ebpf_map.get(&ip.as_octets(), 0)?;
+        let id = u128::from_le_bytes(self.ebpf_map.get(&ip.as_octets(), 0)?);
         self.userland_map
             .get_mut(&id)
             .map(|e| e.remove(&ip.as_octets()));

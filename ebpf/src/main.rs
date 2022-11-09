@@ -18,7 +18,7 @@ use strum::EnumCount;
 #[allow(clippy::all)]
 mod bindings;
 
-use core::{char::MAX, mem};
+use core::mem;
 use firewall_common::{ConfigOpt, PacketLog, RuleStore};
 use memoffset::offset_of;
 
@@ -37,6 +37,8 @@ const MAX_NUMBER_OF_RULES: u32 = 64;
 #[cfg(feature = "rules32")]
 const MAX_NUMBER_OF_RULES: u32 = 32;
 
+type ID = [u8; 16];
+
 // Note: I wish we could use const values as map names
 // but alas! this is not supported yet https://github.com/rust-lang/rust/issues/52393
 // As soon as it is: move map names to const in common crate and use that instead of hardcoding
@@ -46,16 +48,15 @@ static mut EVENTS: PerfEventArray<PacketLog> =
     PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
 
 #[map(name = "SOURCE_ID_IPV4")]
-static mut SOURCE_ID_IPV4: HashMap<[u8; 4], u128> =
-    HashMap::<[u8; 4], u128>::with_max_entries(1024, 0);
+static mut SOURCE_ID_IPV4: HashMap<[u8; 4], ID> = HashMap::<[u8; 4], ID>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV4")]
 static mut RULE_MAP_IPV4: LpmTrie<[u8; 21], RuleStore> =
     LpmTrie::<[u8; 21], RuleStore>::with_max_entries(MAX_NUMBER_OF_RULES, BPF_F_NO_PREALLOC);
 
 #[map(name = "SOURCE_ID_IPV6")]
-static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u128> =
-    HashMap::<[u8; 16], u128>::with_max_entries(1024, 0);
+static mut SOURCE_ID_IPV6: HashMap<[u8; 16], ID> =
+    HashMap::<[u8; 16], ID>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV6")]
 static mut RULE_MAP_IPV6: LpmTrie<[u8; 33], RuleStore> =
@@ -98,7 +99,7 @@ unsafe fn try_ebpf_firewall(ctx: TcContext) -> Result<i32, i64> {
 unsafe fn process<const N: usize, const M: usize>(
     ctx: TcContext,
     version: u8,
-    source_map: &HashMap<[u8; N], u128>,
+    source_map: &HashMap<[u8; N], ID>,
     rule_map: &LpmTrie<[u8; M], RuleStore>,
 ) -> Result<i32, i64> {
     let (source, dest, proto) = load_ntw_headers(&ctx, version)?;
@@ -161,11 +162,11 @@ fn as_log_array<const N: usize>(from: [u8; N]) -> [u8; 16] {
 }
 
 unsafe fn source_class<const N: usize>(
-    source_map: &HashMap<[u8; N], u128>,
+    source_map: &HashMap<[u8; N], ID>,
     address: [u8; N],
 ) -> Option<[u8; 16]> {
     // Race condition if ip changes group?
-    source_map.get(&address).map(|x| u128::to_be_bytes(*x))
+    source_map.get(&address).copied()
 }
 
 fn get_action<const N: usize, const M: usize>(
@@ -217,8 +218,8 @@ fn get_key<const N: usize, const M: usize>(
     // TODO: Could use MaybeUninit
     let group = group.unwrap_or_default();
     let mut res = [0; M];
-    let (res_left, res_address) = res.split_at_mut(5);
-    let (res_group, res_proto) = res_left.split_at_mut(4);
+    let (res_left, res_address) = res.split_at_mut(17);
+    let (res_group, res_proto) = res_left.split_at_mut(16);
     res_group.copy_from_slice(&group);
     res_proto[0] = proto;
     res_address.copy_from_slice(&address);
