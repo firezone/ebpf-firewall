@@ -87,6 +87,11 @@ impl TryFrom<PacketLog> for PacketFormatted {
     type Error = Error;
 
     fn try_from(value: PacketLog) -> Result<Self> {
+        let uuid = if value.class == [0; 16] {
+            None
+        } else {
+            Some(Uuid::from_u128_le(u128::from_le_bytes(value.class)))
+        };
         match value.version {
             6 => Ok(Self {
                 source_ip: IpAddr::from(value.source),
@@ -95,9 +100,7 @@ impl TryFrom<PacketLog> for PacketFormatted {
                 source_port: value.src_port,
                 action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
                 protocol: value.proto,
-                uuid: value
-                    .class
-                    .map(|val| Uuid::from_u128_le(u128::from_le_bytes(val))),
+                uuid,
             }),
             4 => Ok(Self {
                 source_ip: IpAddr::from([
@@ -116,9 +119,7 @@ impl TryFrom<PacketLog> for PacketFormatted {
                 source_port: value.src_port,
                 action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
                 protocol: value.proto,
-                uuid: value
-                    .class
-                    .map(|val| Uuid::from_u128_le(u128::from_le_bytes(val))),
+                uuid,
             }),
             _ => Err(Error::LogFormatError),
         }

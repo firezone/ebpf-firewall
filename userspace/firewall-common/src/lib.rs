@@ -19,7 +19,8 @@ pub struct PacketLog {
     pub src_port: u16,
     pub proto: u8,
     pub version: u8,
-    pub class: Option<[u8; 16]>,
+    pub class: [u8; 16],
+    pub pad: [u8; 2],
 }
 
 #[repr(u8)]

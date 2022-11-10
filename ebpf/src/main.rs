@@ -116,7 +116,8 @@ unsafe fn process<const N: usize, const M: usize>(
         src_port,
         proto,
         version,
-        class,
+        class: class.unwrap_or([0; 16]),
+        pad: [0; 2],
     };
     EVENTS.output(&ctx, &log_entry, 0);
     Ok(action)
