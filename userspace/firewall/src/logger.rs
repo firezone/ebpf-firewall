@@ -1,7 +1,8 @@
 #![cfg(any(feature = "tokio", feature = "async_std"))]
 
-use crate::Result;
-use std::ops::DerefMut;
+use crate::{Error, Result};
+use num_traits::FromPrimitive;
+use std::{convert::TryFrom, net::IpAddr, ops::DerefMut};
 
 // This module could be expanded to be used with `PerfEventArray`
 // That way we wouldn't depend on having a tokio or async_std runtime
@@ -15,13 +16,14 @@ use aya::{
     Bpf,
 };
 use bytes::BytesMut;
-use firewall_common::PacketLog;
+use firewall_common::{Action, PacketLog};
 
 #[cfg(feature = "tokio")]
 use tokio::spawn;
 
 #[cfg(feature = "async-std")]
 use async_std::task::spawn;
+use uuid::Uuid;
 
 use crate::EVENT_ARRAY;
 
@@ -62,7 +64,64 @@ pub async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayB
             // SAFETY: read_event makes sure buf is initialized to a Packetlog
             // Also Packetlog is Copy
             .map(|buf| unsafe { buf_to_packet(buf) })
-            .for_each(|data| tracing::info!(target: "packet_log", "Ingress Packet: {data}"));
+            .for_each(|data| {
+                let Ok(packet) = PacketFormatted::try_from(data) else {return;};
+                tracing::info!(target: "packet_log", "{packet:?}");
+            });
+    }
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct PacketFormatted {
+    source_ip: IpAddr,
+    destination_ip: IpAddr,
+    destination_port: u16,
+    source_port: u16,
+    action: Action,
+    protocol: u8,
+    uuid: Option<uuid::Uuid>,
+}
+
+impl TryFrom<PacketLog> for PacketFormatted {
+    type Error = Error;
+
+    fn try_from(value: PacketLog) -> Result<Self> {
+        match value.version {
+            6 => Ok(Self {
+                source_ip: IpAddr::from(value.source),
+                destination_ip: IpAddr::from(value.dest),
+                destination_port: value.dest_port,
+                source_port: value.src_port,
+                action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
+                protocol: value.proto,
+                uuid: value
+                    .class
+                    .map(|val| Uuid::from_u128_le(u128::from_le_bytes(val))),
+            }),
+            4 => Ok(Self {
+                source_ip: IpAddr::from([
+                    value.source[0],
+                    value.source[1],
+                    value.source[2],
+                    value.source[3],
+                ]),
+                destination_ip: IpAddr::from([
+                    value.dest[0],
+                    value.dest[1],
+                    value.dest[2],
+                    value.dest[3],
+                ]),
+                destination_port: value.dest_port,
+                source_port: value.src_port,
+                action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
+                protocol: value.proto,
+                uuid: value
+                    .class
+                    .map(|val| Uuid::from_u128_le(u128::from_le_bytes(val))),
+            }),
+            _ => Err(Error::LogFormatError),
+        }
     }
 }
 

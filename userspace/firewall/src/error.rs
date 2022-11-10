@@ -40,4 +40,6 @@ pub enum Error {
     /// Id doesn't exists in the classifier.
     #[error("Id not stored in classifier")]
     NotExistingId,
+    #[error("Packet format is errnoeous for logging")]
+    LogFormatError,
 }

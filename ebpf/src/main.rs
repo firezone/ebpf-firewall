@@ -103,18 +103,20 @@ unsafe fn process<const N: usize, const M: usize>(
     rule_map: &LpmTrie<[u8; M], RuleStore>,
 ) -> Result<i32, i64> {
     let (source, dest, proto) = load_ntw_headers(&ctx, version)?;
-    let port = get_port(&ctx, version, proto)?;
+    let (dest_port, src_port) = get_port(&ctx, version, proto)?;
     let class = source_class(source_map, source);
-    let action = get_action(class, dest, rule_map, port, proto);
+    let action = get_action(class, dest, rule_map, dest_port, proto);
     let source = as_log_array(source);
     let dest = as_log_array(dest);
     let log_entry = PacketLog {
         source,
         dest,
         action,
-        port,
+        dest_port,
+        src_port,
         proto,
         version,
+        class,
     };
     EVENTS.output(&ctx, &log_entry, 0);
     Ok(action)
@@ -139,19 +141,25 @@ fn load_ntw_headers<const N: usize>(
     Ok((source, dest, next_header))
 }
 
-fn get_port(ctx: &TcContext, version: u8, proto: u8) -> Result<u16, i64> {
+fn get_port(ctx: &TcContext, version: u8, proto: u8) -> Result<(u16, u16), i64> {
     let ip_len = match version {
         6 => IPV6_HDR_LEN,
         4 => IP_HDR_LEN,
         _ => unreachable!("Should only call with valid packet"),
     };
-    let port = match proto {
+    let dest_port = match proto {
         TCP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(tcphdr, dest))?),
         UDP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(udphdr, dest))?),
         _ => 0,
     };
 
-    Ok(port)
+    let src_port = match proto {
+        TCP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(tcphdr, source))?),
+        UDP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(udphdr, source))?),
+        _ => 0,
+    };
+
+    Ok((dest_port, src_port))
 }
 
 fn as_log_array<const N: usize>(from: [u8; N]) -> [u8; 16] {

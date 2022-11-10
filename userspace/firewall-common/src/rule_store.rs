@@ -33,7 +33,7 @@ const TC_ACT_SHOT: i32 = 2;
 /// Action to set for the default configuration in `Firewall` using `set_default_action`.
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "user", derive(Debug, Hash))]
+#[cfg_attr(feature = "user", derive(Debug, Hash, num_derive::FromPrimitive))]
 pub enum Action {
     /// Accept packets.
     Accept = TC_ACT_OK,
