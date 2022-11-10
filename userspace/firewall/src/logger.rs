@@ -90,7 +90,7 @@ impl TryFrom<PacketLog> for PacketFormatted {
         let uuid = if value.class == [0; 16] {
             None
         } else {
-            Some(Uuid::from_u128_le(u128::from_le_bytes(value.class)))
+            Some(Uuid::from_u128(u128::from_le_bytes(value.class)))
         };
         match value.version {
             6 => Ok(Self {
