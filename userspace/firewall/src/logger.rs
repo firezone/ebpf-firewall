@@ -78,8 +78,8 @@ pub async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayB
 struct PacketFormatted {
     source_ip: IpAddr,
     destination_ip: IpAddr,
-    destination_port: u16,
-    source_port: u16,
+    destination_port: Option<u16>,
+    source_port: Option<u16>,
     action: Action,
     protocol: u8,
     uuid: Option<uuid::Uuid>,
@@ -90,6 +90,16 @@ impl TryFrom<PacketLog> for PacketFormatted {
     type Error = Error;
 
     fn try_from(value: PacketLog) -> Result<Self> {
+        let destination_port = match value.dest_port {
+            0 => None,
+            x => Some(x),
+        };
+
+        let source_port = match value.src_port {
+            0 => None,
+            x => Some(x),
+        };
+        let action = Action::from_i32(value.action).ok_or(Error::LogFormatError)?;
         let timestamp =
             chrono::offset::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
         let uuid = if value.class == [0; 16] {
@@ -101,9 +111,9 @@ impl TryFrom<PacketLog> for PacketFormatted {
             6 => Ok(Self {
                 source_ip: IpAddr::from(value.source),
                 destination_ip: IpAddr::from(value.dest),
-                destination_port: value.dest_port,
-                source_port: value.src_port,
-                action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
+                destination_port,
+                source_port,
+                action,
                 protocol: value.proto,
                 uuid,
                 timestamp,
@@ -121,9 +131,9 @@ impl TryFrom<PacketLog> for PacketFormatted {
                     value.dest[2],
                     value.dest[3],
                 ]),
-                destination_port: value.dest_port,
-                source_port: value.src_port,
-                action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
+                destination_port,
+                source_port,
+                action,
                 protocol: value.proto,
                 uuid,
                 timestamp,
