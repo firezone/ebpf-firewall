@@ -2,6 +2,7 @@
 
 use crate::{Error, Result};
 use num_traits::FromPrimitive;
+use serde::Serialize;
 use std::{convert::TryFrom, net::IpAddr, ops::DerefMut};
 
 // This module could be expanded to be used with `PerfEventArray`
@@ -66,12 +67,13 @@ pub async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayB
             .map(|buf| unsafe { buf_to_packet(buf) })
             .for_each(|data| {
                 let Ok(packet) = PacketFormatted::try_from(data) else {return;};
-                tracing::info!(target: "packet_log", "{packet:?}");
+                let Ok(packet) = serde_json::to_string(&packet) else {return;};
+                tracing::info!(target: "packet_log", "{packet}");
             });
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 #[allow(dead_code)]
 struct PacketFormatted {
     source_ip: IpAddr,
@@ -81,12 +83,15 @@ struct PacketFormatted {
     action: Action,
     protocol: u8,
     uuid: Option<uuid::Uuid>,
+    timestamp: String,
 }
 
 impl TryFrom<PacketLog> for PacketFormatted {
     type Error = Error;
 
     fn try_from(value: PacketLog) -> Result<Self> {
+        let timestamp =
+            chrono::offset::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
         let uuid = if value.class == [0; 16] {
             None
         } else {
@@ -101,6 +106,7 @@ impl TryFrom<PacketLog> for PacketFormatted {
                 action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
                 protocol: value.proto,
                 uuid,
+                timestamp,
             }),
             4 => Ok(Self {
                 source_ip: IpAddr::from([
@@ -120,6 +126,7 @@ impl TryFrom<PacketLog> for PacketFormatted {
                 action: Action::from_i32(value.action).ok_or(Error::LogFormatError)?,
                 protocol: value.proto,
                 uuid,
+                timestamp,
             }),
             _ => Err(Error::LogFormatError),
         }
