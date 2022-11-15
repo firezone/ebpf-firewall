@@ -162,7 +162,7 @@ impl Protocol {
         if *self == Protocol::Generic {
             vec![Self::TCP, Self::UDP]
         } else {
-            vec![self.clone()]
+            vec![*self]
         }
     }
 }

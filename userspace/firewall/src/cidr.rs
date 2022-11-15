@@ -97,13 +97,13 @@ pub trait Contains {
 
 impl Contains for Ipv4Net {
     fn contains(&self, other: &Self) -> bool {
-        Ipv4Net::contains(&self, other)
+        Ipv4Net::contains(self, other)
     }
 }
 
 impl Contains for Ipv6Net {
     fn contains(&self, other: &Self) -> bool {
-        Ipv6Net::contains(&self, other)
+        Ipv6Net::contains(self, other)
     }
 }
 

@@ -7,7 +7,7 @@ use super::new_rule;
 
 impl RuleStore {
     pub fn new(ports: &[(u16, u16)]) -> Result<RuleStore, RuleStoreError> {
-        if (ports.len() as usize) <= MAX_RANGES {
+        if ports.len() <= MAX_RANGES {
             if Self::wellformed(ports) {
                 let mut rules = [0u32; MAX_RANGES];
                 let rule_len = ports.len();

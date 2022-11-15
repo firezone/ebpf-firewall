@@ -171,7 +171,7 @@ where
             let id = id.unwrap_or(0);
 
             self.check_range_len(&port_range, id, dest)?;
-            self.reverse_propagate_check(&dest, id, proto)?;
+            self.reverse_propagate_check(dest, id, proto)?;
             self.propagate_check(port_range, id, proto)?;
         }
 
@@ -194,7 +194,7 @@ where
                     .expect("Incorrect number of rules, should've errored in the previous check"),
             )?;
 
-            self.reverse_propagate(&dest, id, proto)?;
+            self.reverse_propagate(dest, id, proto)?;
             self.propagate(port_range, id, proto)?;
         }
         Ok(())
