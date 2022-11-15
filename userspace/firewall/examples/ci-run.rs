@@ -34,9 +34,9 @@ async fn main() -> Result<(), anyhow::Error> {
     bump_memlock_rlimit()?;
     let mut firewall = Firewall::new(opt.iface)?;
 
-    firewall.add_id("10.13.13.2".parse().unwrap(), 1)?;
+    firewall.add_id("10.13.13.2/32".parse().unwrap(), 1)?;
 
-    firewall.add_id("fafa::2".parse().unwrap(), 1)?;
+    firewall.add_id("fafa::2/128".parse().unwrap(), 1)?;
 
     firewall.set_default_action(Action::Reject)?;
 
