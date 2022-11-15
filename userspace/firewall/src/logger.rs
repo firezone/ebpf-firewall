@@ -24,6 +24,7 @@ use tokio::spawn;
 
 #[cfg(feature = "async-std")]
 use async_std::task::spawn;
+
 use uuid::Uuid;
 
 use crate::EVENT_ARRAY;
@@ -107,40 +108,27 @@ impl TryFrom<PacketLog> for PacketFormatted {
         } else {
             Some(Uuid::from_u128(u128::from_le_bytes(value.class)))
         };
-        match value.version {
-            6 => Ok(Self {
-                source_ip: IpAddr::from(value.source),
-                destination_ip: IpAddr::from(value.dest),
-                destination_port,
-                source_port,
-                action,
-                protocol: value.proto,
-                uuid,
-                timestamp,
-            }),
-            4 => Ok(Self {
-                source_ip: IpAddr::from([
-                    value.source[0],
-                    value.source[1],
-                    value.source[2],
-                    value.source[3],
-                ]),
-                destination_ip: IpAddr::from([
-                    value.dest[0],
-                    value.dest[1],
-                    value.dest[2],
-                    value.dest[3],
-                ]),
-                destination_port,
-                source_port,
-                action,
-                protocol: value.proto,
-                uuid,
-                timestamp,
-            }),
-            _ => Err(Error::LogFormatError),
-        }
+
+        let (source_ip, destination_ip) = match value.version {
+            6 => (IpAddr::from(value.source), IpAddr::from(value.dest)),
+            4 => (to_ip(value.source), to_ip(value.dest)),
+            _ => return Err(Error::LogFormatError),
+        };
+        Ok(Self {
+            source_ip,
+            destination_ip,
+            destination_port,
+            source_port,
+            action,
+            protocol: value.proto,
+            uuid,
+            timestamp,
+        })
     }
+}
+
+fn to_ip(ip: [u8; 16]) -> IpAddr {
+    IpAddr::from([ip[0], ip[1], ip[2], ip[3]])
 }
 
 unsafe fn buf_to_packet(buf: &mut BytesMut) -> PacketLog {
