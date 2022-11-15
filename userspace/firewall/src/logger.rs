@@ -75,7 +75,6 @@ pub async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayB
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[allow(dead_code)]
 struct PacketFormatted {
     source_ip: IpAddr,
     destination_ip: IpAddr,
