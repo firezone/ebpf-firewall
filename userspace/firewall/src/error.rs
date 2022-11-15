@@ -37,9 +37,9 @@ pub enum Error {
     /// Used 0 as id number.
     #[error("Id number is not valid, must be greater than 0")]
     InvalidId,
-    /// Id doesn't exists in the classifier.
+    /// Id doesn't exist in the classifier.
     #[error("Id not stored in classifier")]
     NotExistingId,
-    #[error("Packet format is errnoeous for logging")]
+    #[error("Packet format is erroneous for logging")]
     LogFormatError,
 }

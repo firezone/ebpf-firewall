@@ -16,7 +16,7 @@
 //! fw.set_default_action(Action::Reject).unwrap();
 //!
 //! // Create and add a rule that will accept any packet outgoing to 10.0.0.5.
-//! // Note that the only reason this rule work as accept is that rules invert the default behavior.
+//! // Note that the only reason this rule works as expected is that rules invert the default behavior.
 //! let rule = Rule::new("10.0.0.5/32".parse().unwrap());
 //! fw.add_rule(&rule).unwrap();
 //!

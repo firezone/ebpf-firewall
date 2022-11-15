@@ -35,7 +35,7 @@ pub struct Firewall {
 impl Firewall {
     /// Creates a new [Firewall] for the given interface.
     ///
-    /// The interface must already exists when calling this function.
+    /// The interface must already exist when calling this function.
     ///
     /// As soon as the [Firewall] is created it will start filtering packets.
     ///
