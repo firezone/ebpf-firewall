@@ -11,6 +11,9 @@ env:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        kernel_version: [4.18, 5.4, 5.10, 5.15]
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v3
@@ -38,29 +41,12 @@ jobs:
         run: cargo install bpf-linker
       - name: Build
         working-directory: ./userspace
-        run: cargo build --verbose --example ci-run
+        run: cargo build --verbose --example ci-run --release
       - name: Run tests
         working-directory: ./userspace
         run: cargo test --verbose
       - name: Run clippy
         working-directory: ./userspace
         run: cargo +nightly clippy -- -D clippy::all
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ci-run
-          path: userspace/target/debug/examples/ci-run
-
-  # Keeping these separate for ease of testing in the future
-  test-run:
-    runs-on: ubuntu-18.04
-    needs: build
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: ci-run
-      - name: Restore artifact permissions
-        run: sudo chmod +x ./ci-run
-      - name: Run eBPF code
-        run: sudo ./ci-run
+      - name: Test on kernel
+        run: cargo xtask run-on ${{ matrix.kernel_version }}  --release

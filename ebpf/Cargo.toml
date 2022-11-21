@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aya-bpf = { git = "https://github.com/aya-rs/aya", rev = "23c0460ab36e35d15a8b2d2246ebfb1e9544beeb" }
+aya-bpf = { git = "https://github.com/aya-rs/aya", rev = "88d77775530341ec32ff4f764b729e53a48c0de0" }
 firewall-common = { path = "../userspace/firewall-common" }
 memoffset = "0.6"
 strum = { version = "0.24", default-features = false }

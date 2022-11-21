@@ -23,7 +23,7 @@ use crate::{
 ///
 /// See example at the [crate-level doc](crate#example).
 pub struct Firewall {
-    _bpf: Bpf,
+    bpf: Bpf,
     rule_tracker_v4: RuleTrackerV4,
     rule_tracker_v6: RuleTrackerV6,
     classifier_v4: ClassifierV4,
@@ -61,15 +61,15 @@ impl Firewall {
         program.load()?;
         program.attach(iface.as_ref(), TcAttachType::Ingress, 0)?;
 
-        let rule_tracker_v4 = RuleTrackerV4::new(&bpf)?;
-        let rule_tracker_v6 = RuleTrackerV6::new(&bpf)?;
-        let classifier_v4 = ClassifierV4::new(&bpf)?;
-        let classifier_v6 = ClassifierV6::new(&bpf)?;
-        let logger = Logger::new(&bpf)?;
-        let config = ConfigHandler::new(&bpf)?;
+        let rule_tracker_v4 = RuleTrackerV4::new()?;
+        let rule_tracker_v6 = RuleTrackerV6::new()?;
+        let classifier_v4 = ClassifierV4::new()?;
+        let classifier_v6 = ClassifierV6::new()?;
+        let logger = Logger::new()?;
+        let config = ConfigHandler::new()?;
 
         Ok(Self {
-            _bpf: bpf,
+            bpf,
             rule_tracker_v4,
             rule_tracker_v6,
             classifier_v4,
@@ -93,7 +93,7 @@ impl Firewall {
     /// fw.set_default_action(Action::Accept).unwrap();
     /// ```
     pub fn set_default_action(&mut self, action: Action) -> Result<()> {
-        self.config.set_default_action(action)
+        self.config.set_default_action(&mut self.bpf, action)
     }
 
     /// Adds a [Rule] for the firewall.
@@ -109,8 +109,8 @@ impl Firewall {
     /// ```
     pub fn add_rule(&mut self, rule: &Rule) -> Result<()> {
         match &rule {
-            Rule::V4(r) => self.rule_tracker_v4.add_rule(r),
-            Rule::V6(r) => self.rule_tracker_v6.add_rule(r),
+            Rule::V4(r) => self.rule_tracker_v4.add_rule(&mut self.bpf, r),
+            Rule::V6(r) => self.rule_tracker_v6.add_rule(&mut self.bpf, r),
         }
     }
 
@@ -126,8 +126,8 @@ impl Firewall {
     /// ```
     pub fn remove_rule(&mut self, rule: &Rule) -> Result<()> {
         match &rule {
-            Rule::V4(r) => self.rule_tracker_v4.remove_rule(r),
-            Rule::V6(r) => self.rule_tracker_v6.remove_rule(r),
+            Rule::V4(r) => self.rule_tracker_v4.remove_rule(&mut self.bpf, r),
+            Rule::V6(r) => self.rule_tracker_v6.remove_rule(&mut self.bpf, r),
         }
     }
 
@@ -149,8 +149,8 @@ impl Firewall {
     /// ```
     pub fn add_id(&mut self, ip: IpNet, id: u128) -> Result<()> {
         match ip {
-            IpNet::V4(ip) => self.classifier_v4.insert(ip, id),
-            IpNet::V6(ip) => self.classifier_v6.insert(ip, id),
+            IpNet::V4(ip) => self.classifier_v4.insert(&mut self.bpf, ip, id),
+            IpNet::V6(ip) => self.classifier_v6.insert(&mut self.bpf, ip, id),
         }
     }
 
@@ -165,8 +165,8 @@ impl Firewall {
     /// ```
     pub fn remove_id(&mut self, ip: &IpNet) -> Result<()> {
         match ip {
-            IpNet::V4(ip) => self.classifier_v4.remove(ip),
-            IpNet::V6(ip) => self.classifier_v6.remove(ip),
+            IpNet::V4(ip) => self.classifier_v4.remove(&mut self.bpf, ip),
+            IpNet::V6(ip) => self.classifier_v6.remove(&mut self.bpf, ip),
         }
     }
 
@@ -182,8 +182,8 @@ impl Firewall {
     /// fw.remove_by_id(1).unwrap();
     /// ```
     pub fn remove_by_id(&mut self, id: u128) -> Result<()> {
-        self.classifier_v4.remove_by_id(id)?;
-        self.classifier_v6.remove_by_id(id)?;
+        self.classifier_v4.remove_by_id(&mut self.bpf, id)?;
+        self.classifier_v6.remove_by_id(&mut self.bpf, id)?;
         Ok(())
     }
 
@@ -196,6 +196,6 @@ impl Firewall {
     /// fw.start_logging().unwrap();
     /// ```
     pub fn start_logging(&mut self) -> Result<()> {
-        self.logger.init()
+        self.logger.init(&mut self.bpf)
     }
 }
