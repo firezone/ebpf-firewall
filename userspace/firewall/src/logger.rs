@@ -3,7 +3,7 @@
 use crate::{Error, Result};
 use num_traits::FromPrimitive;
 use serde::Serialize;
-use std::{convert::TryFrom, net::IpAddr, ops::DerefMut};
+use std::{convert::TryFrom, net::IpAddr};
 
 // This module could be expanded to be used with `PerfEventArray`
 // That way we wouldn't depend on having a tokio or async_std runtime
@@ -11,7 +11,7 @@ use std::{convert::TryFrom, net::IpAddr, ops::DerefMut};
 use aya::{
     maps::{
         perf::{AsyncPerfEventArray, AsyncPerfEventArrayBuffer},
-        Map, MapRefMut,
+        MapData,
     },
     util::online_cpus,
     Bpf,
@@ -30,23 +30,25 @@ use uuid::Uuid;
 use crate::EVENT_ARRAY;
 
 pub struct Logger {
-    event_array: AsyncPerfEventArray<MapRefMut>,
+    map_name: String,
 }
 
 impl Logger {
-    fn new_with_name(bpf: &Bpf, map_name: impl AsRef<str>) -> Result<Self> {
+    fn new_with_name(map_name: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
-            event_array: AsyncPerfEventArray::try_from(bpf.map_mut(map_name.as_ref())?)?,
+            map_name: map_name.as_ref().to_string(),
         })
     }
 
-    pub fn new(bpf: &Bpf) -> Result<Self> {
-        Self::new_with_name(bpf, EVENT_ARRAY)
+    pub fn new() -> Result<Self> {
+        Self::new_with_name(EVENT_ARRAY)
     }
 
-    pub fn init(&mut self) -> Result<()> {
+    pub fn init(&mut self, bpf: &mut Bpf) -> Result<()> {
+        let map = bpf.take_map(&self.map_name).ok_or(Error::MapNotFound)?;
+        let mut event_array = AsyncPerfEventArray::try_from(map)?;
         for cpu_id in online_cpus()? {
-            let buf = self.event_array.open(cpu_id, None)?;
+            let buf = event_array.open(cpu_id, None)?;
             spawn(log_events(buf));
         }
 
@@ -54,7 +56,7 @@ impl Logger {
     }
 }
 
-pub async fn log_events<T: DerefMut<Target = Map>>(mut buf: AsyncPerfEventArrayBuffer<T>) {
+pub async fn log_events<T: AsMut<MapData> + AsRef<MapData>>(mut buf: AsyncPerfEventArrayBuffer<T>) {
     let mut buffers = (0..10)
         .map(|_| BytesMut::with_capacity(1024))
         .collect::<Vec<_>>();

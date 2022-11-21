@@ -42,4 +42,6 @@ pub enum Error {
     NotExistingId,
     #[error("Packet format is erroneous for logging")]
     LogFormatError,
+    #[error("Expected map not found")]
+    MapNotFound,
 }
