@@ -17,13 +17,27 @@ use strum::EnumCount;
 
 #[allow(clippy::all)]
 mod bindings;
-use bindings::iphdr;
 
 use core::mem;
 use firewall_common::{ConfigOpt, PacketLog, RuleStore};
 use memoffset::offset_of;
 
-use crate::bindings::{ipv6hdr, tcphdr, udphdr};
+use crate::bindings::{iphdr, ipv6hdr, tcphdr, udphdr};
+
+#[cfg(feature = "rules1024")]
+const MAX_NUMBER_OF_RULES: u32 = 1024;
+#[cfg(feature = "rules512")]
+const MAX_NUMBER_OF_RULES: u32 = 512;
+#[cfg(feature = "rules256")]
+const MAX_NUMBER_OF_RULES: u32 = 256;
+#[cfg(feature = "rules128")]
+const MAX_NUMBER_OF_RULES: u32 = 128;
+#[cfg(feature = "rules64")]
+const MAX_NUMBER_OF_RULES: u32 = 64;
+#[cfg(feature = "rules32")]
+const MAX_NUMBER_OF_RULES: u32 = 32;
+
+type ID = [u8; 16];
 
 // Note: I wish we could use const values as map names
 // but alas! this is not supported yet https://github.com/rust-lang/rust/issues/52393
@@ -34,20 +48,19 @@ static mut EVENTS: PerfEventArray<PacketLog> =
     PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
 
 #[map(name = "SOURCE_ID_IPV4")]
-static mut SOURCE_ID_IPV4: HashMap<[u8; 4], u32> =
-    HashMap::<[u8; 4], u32>::with_max_entries(1024, 0);
+static mut SOURCE_ID_IPV4: HashMap<[u8; 4], ID> = HashMap::<[u8; 4], ID>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV4")]
-static mut RULE_MAP_IPV4: LpmTrie<[u8; 9], RuleStore> =
-    LpmTrie::<[u8; 9], RuleStore>::with_max_entries(10_000, BPF_F_NO_PREALLOC);
+static mut RULE_MAP_IPV4: LpmTrie<[u8; 21], RuleStore> =
+    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(MAX_NUMBER_OF_RULES, BPF_F_NO_PREALLOC);
 
 #[map(name = "SOURCE_ID_IPV6")]
-static mut SOURCE_ID_IPV6: HashMap<[u8; 16], u32> =
-    HashMap::<[u8; 16], u32>::with_max_entries(1024, 0);
+static mut SOURCE_ID_IPV6: HashMap<[u8; 16], ID> =
+    HashMap::<[u8; 16], ID>::with_max_entries(1024, 0);
 
 #[map(name = "RULE_MAP_IPV6")]
-static mut RULE_MAP_IPV6: LpmTrie<[u8; 21], RuleStore> =
-    LpmTrie::<[u8; 21], RuleStore>::with_max_entries(10_000, BPF_F_NO_PREALLOC);
+static mut RULE_MAP_IPV6: LpmTrie<[u8; 33], RuleStore> =
+    LpmTrie::<[u8; 33], RuleStore>::with_max_entries(MAX_NUMBER_OF_RULES, BPF_F_NO_PREALLOC);
 
 // For now this just configs the default action
 // However! We can use this eventually to share more runtime configs
@@ -86,22 +99,25 @@ unsafe fn try_ebpf_firewall(ctx: TcContext) -> Result<i32, i64> {
 unsafe fn process<const N: usize, const M: usize>(
     ctx: TcContext,
     version: u8,
-    source_map: &HashMap<[u8; N], u32>,
+    source_map: &HashMap<[u8; N], ID>,
     rule_map: &LpmTrie<[u8; M], RuleStore>,
 ) -> Result<i32, i64> {
     let (source, dest, proto) = load_ntw_headers(&ctx, version)?;
-    let port = get_port(&ctx, version, proto)?;
+    let (dest_port, src_port) = get_port(&ctx, version, proto)?;
     let class = source_class(source_map, source);
-    let action = get_action(class, dest, rule_map, port, proto);
+    let action = get_action(class, dest, rule_map, dest_port, proto);
     let source = as_log_array(source);
     let dest = as_log_array(dest);
     let log_entry = PacketLog {
         source,
         dest,
         action,
-        port,
+        dest_port,
+        src_port,
         proto,
         version,
+        class: class.unwrap_or([0; 16]),
+        pad: [0; 2],
     };
     EVENTS.output(&ctx, &log_entry, 0);
     Ok(action)
@@ -126,19 +142,25 @@ fn load_ntw_headers<const N: usize>(
     Ok((source, dest, next_header))
 }
 
-fn get_port(ctx: &TcContext, version: u8, proto: u8) -> Result<u16, i64> {
+fn get_port(ctx: &TcContext, version: u8, proto: u8) -> Result<(u16, u16), i64> {
     let ip_len = match version {
         6 => IPV6_HDR_LEN,
         4 => IP_HDR_LEN,
         _ => unreachable!("Should only call with valid packet"),
     };
-    let port = match proto {
+    let dest_port = match proto {
         TCP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(tcphdr, dest))?),
         UDP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(udphdr, dest))?),
         _ => 0,
     };
 
-    Ok(port)
+    let src_port = match proto {
+        TCP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(tcphdr, source))?),
+        UDP => u16::from_be(ctx.load(ETH_HDR_LEN + ip_len + offset_of!(udphdr, source))?),
+        _ => 0,
+    };
+
+    Ok((dest_port, src_port))
 }
 
 fn as_log_array<const N: usize>(from: [u8; N]) -> [u8; 16] {
@@ -149,15 +171,15 @@ fn as_log_array<const N: usize>(from: [u8; N]) -> [u8; 16] {
 }
 
 unsafe fn source_class<const N: usize>(
-    source_map: &HashMap<[u8; N], u32>,
+    source_map: &HashMap<[u8; N], ID>,
     address: [u8; N],
-) -> Option<[u8; 4]> {
+) -> Option<[u8; 16]> {
     // Race condition if ip changes group?
-    source_map.get(&address).map(|x| u32::to_be_bytes(*x))
+    source_map.get(&address).copied()
 }
 
 fn get_action<const N: usize, const M: usize>(
-    group: Option<[u8; 4]>,
+    group: Option<[u8; 16]>,
     address: [u8; N],
     rule_map: &LpmTrie<[u8; M], RuleStore>,
     port: u16,
@@ -198,15 +220,15 @@ fn is_stored(rule_store: &Option<&RuleStore>, port: u16) -> bool {
 }
 
 fn get_key<const N: usize, const M: usize>(
-    group: Option<[u8; 4]>,
+    group: Option<[u8; 16]>,
     proto: u8,
     address: [u8; N],
 ) -> [u8; M] {
     // TODO: Could use MaybeUninit
     let group = group.unwrap_or_default();
     let mut res = [0; M];
-    let (res_left, res_address) = res.split_at_mut(5);
-    let (res_group, res_proto) = res_left.split_at_mut(4);
+    let (res_left, res_address) = res.split_at_mut(17);
+    let (res_group, res_proto) = res_left.split_at_mut(16);
     res_group.copy_from_slice(&group);
     res_proto[0] = proto;
     res_address.copy_from_slice(&address);

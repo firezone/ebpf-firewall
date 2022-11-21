@@ -5,56 +5,72 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
-    net::{Ipv4Addr, Ipv6Addr},
-    ops::RangeInclusive,
 };
 
 use aya::{
     maps::{lpm_trie::LpmTrie, MapRefMut},
     Bpf,
 };
-use firewall_common::RuleStore;
+use firewall_common::{RuleStore, RuleStoreError};
+use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, Cidr},
-    Error, Protocol, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
+    cidr::{AsKey, AsNum, Contains, Normalize, Normalized},
+    rule::{self, Protocol, RuleImpl},
+    Error, Result, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
 use rule_trie::RuleTrie;
+
+type StoreResult<T = ()> = std::result::Result<T, RuleStoreError>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PortRange<T>
 where
-    T: AsNum + From<T::Num>,
-    T: AsOctets,
+    T: AsNum + AsOctets,
     T::Octets: AsRef<[u8]>,
 {
-    pub ports: RangeInclusive<u16>,
-    pub origin: Cidr<T>,
+    ports: rule::PortRange,
+    origin: T,
 }
 
-fn to_rule_store<T>(port_ranges: HashSet<PortRange<T>>) -> RuleStore
+impl<T> PortRange<T>
 where
-    T: AsNum + From<T::Num>,
-    T: AsOctets,
+    T: AsNum + AsOctets + Clone,
     T::Octets: AsRef<[u8]>,
 {
-    let port_ranges = &mut port_ranges.iter().collect::<Vec<_>>()[..];
+    fn unfold(&self) -> Vec<Self> {
+        self.ports
+            .unfold()
+            .iter()
+            .map(|ports| PortRange {
+                ports: ports.clone(),
+                origin: self.origin.clone(),
+            })
+            .collect()
+    }
+}
 
-    // TODO: Handle rule exhaustion
-    RuleStore::new(&resolve_overlap(port_ranges)).unwrap()
+fn to_rule_store<'a, T>(
+    port_ranges: impl IntoIterator<Item = &'a PortRange<T>>,
+) -> StoreResult<RuleStore>
+where
+    T: AsNum + AsOctets + 'a,
+    T::Octets: AsRef<[u8]>,
+{
+    let port_ranges = &mut port_ranges.into_iter().collect::<Vec<_>>()[..];
+    RuleStore::new(&resolve_overlap(port_ranges))
 }
 
 fn resolve_overlap<T>(port_ranges: &mut [&PortRange<T>]) -> Vec<(u16, u16)>
 where
-    T: AsNum + From<T::Num>,
-    T: AsOctets,
+    T: AsNum + AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     let mut res = Vec::new();
-    port_ranges.sort_by_key(|p| p.ports.start());
+    port_ranges.sort_by_key(|p| p.ports.ports.start());
     if let Some(range) = port_ranges.first() {
-        res.push((*range.ports.start(), *range.ports.end()));
+        res.push((*range.ports.ports.start(), *range.ports.ports.end()));
     } else {
         return res;
     }
@@ -63,34 +79,33 @@ where
             .last_mut()
             .expect("should contain at least the first element of port_ranges");
 
-        if last_res.1 >= *range.ports.start() {
-            *last_res = (last_res.0, last_res.1.max(*range.ports.end()));
+        if last_res.1 >= *range.ports.ports.start() {
+            *last_res = (last_res.0, last_res.1.max(*range.ports.ports.end()));
         } else {
-            res.push((*range.ports.start(), *range.ports.end()));
+            res.push((*range.ports.ports.start(), *range.ports.ports.end()));
         }
     }
     res
 }
 
-pub struct RuleTracker<T, U>
+pub(crate) type RuleTrackerV4 = RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>>;
+pub(crate) type RuleTrackerV6 = RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 33], RuleStore>>;
+
+pub(crate) struct RuleTracker<T, U>
 where
-    T: AsNum + From<T::Num>,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + AsOctets + AsKey + Normalize,
     T::Octets: AsRef<[u8]>,
-    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+    U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
-    rule_map: HashMap<(u32, Protocol, Cidr<T>), HashSet<PortRange<T>>>,
+    rule_map: HashMap<(u128, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
     ebpf_store: U,
 }
 
 impl<T, U> Debug for RuleTracker<T, U>
 where
-    T: AsNum + From<T::Num> + Debug,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + AsKey + Normalize + AsOctets + Debug,
     T::Octets: AsRef<[u8]>,
-    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+    U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuleTracker")
@@ -99,27 +114,26 @@ where
     }
 }
 
-impl RuleTracker<Ipv4Addr, LpmTrie<MapRefMut, [u8; 9], RuleStore>> {
-    pub fn new_ipv4(bpf: &Bpf) -> Result<Self> {
+impl RuleTracker<Ipv4Net, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
+    pub(crate) fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV4)
     }
 }
 
-impl RuleTracker<Ipv6Addr, LpmTrie<MapRefMut, [u8; 21], RuleStore>> {
-    pub fn new_ipv6(bpf: &Bpf) -> Result<Self> {
+impl RuleTracker<Ipv6Net, LpmTrie<MapRefMut, [u8; 33], RuleStore>> {
+    pub(crate) fn new(bpf: &Bpf) -> Result<Self> {
         Self::new_with_name(bpf, RULE_MAP_IPV6)
     }
 }
 
-impl<T> RuleTracker<T, LpmTrie<MapRefMut, <Cidr<T> as AsKey>::KeySize, RuleStore>>
+impl<T> RuleTracker<T, LpmTrie<MapRefMut, <T as AsKey>::KeySize, RuleStore>>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone,
-    Cidr<T>: AsKey,
+    T: AsNum + Eq + Hash + Clone + AsKey + Normalize,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     fn new_with_name(bpf: &Bpf, store_name: impl AsRef<str>) -> Result<Self> {
-        let ebpf_store: LpmTrie<_, <Cidr<T> as AsKey>::KeySize, RuleStore> =
+        let ebpf_store: LpmTrie<_, <T as AsKey>::KeySize, RuleStore> =
             LpmTrie::try_from(bpf.map_mut(store_name.as_ref())?)?;
         Ok(Self {
             rule_map: HashMap::new(),
@@ -130,102 +144,105 @@ where
 
 impl<T, U> RuleTracker<T, U>
 where
-    T: AsNum + From<T::Num> + Eq + Hash + Clone,
-    Cidr<T>: AsKey,
-    T: AsOctets,
+    T: AsNum + AsKey + AsOctets + Eq + Hash + Clone + Normalize + Contains,
     T::Octets: AsRef<[u8]>,
-    U: RuleTrie<<Cidr<T> as AsKey>::KeySize, RuleStore>,
+    U: RuleTrie<<T as AsKey>::KeySize, RuleStore>,
 {
-    pub fn add_rule(
+    pub(crate) fn add_rule(
         &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
+        RuleImpl {
+            id,
+            dest,
+            port_range,
+        }: &RuleImpl<T>,
     ) -> Result<()> {
-        if proto == Protocol::Generic {
-            let res = self.add_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
-            if res.is_ok() {
-                self.add_rule_impl(id, cidr, ports, Protocol::UDP)
-            } else {
-                res
-            }
-        } else {
-            self.add_rule_impl(id, cidr, ports, proto)
-        }
-    }
-
-    fn add_rule_impl(
-        &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
-    ) -> Result<()> {
-        let ports = ports.into();
-        if ports.contains(&0) && ports.len() > 1 {
+        if !port_range_check(port_range) {
             return Err(Error::InvalidPort);
         }
+
         let port_range = PortRange {
-            ports,
-            origin: cidr.clone(),
+            ports: port_range.clone().unwrap_or_default(),
+            origin: dest.clone(),
         };
 
-        let port_ranges = self
-            .rule_map
-            .entry((id, proto, cidr.clone()))
-            .and_modify(|e| {
-                e.insert(port_range.clone());
-            })
-            .or_insert_with(|| HashSet::from([port_range.clone()]));
+        // Checks to prevent rollback
+        for port_range in port_range.unfold() {
+            let proto = port_range.ports.proto;
+            let id = id.unwrap_or(0);
 
-        self.ebpf_store.insert(
-            &cidr.as_key(id, proto as u8),
-            to_rule_store(port_ranges.clone()),
-        )?;
+            self.check_range_len(&port_range, id, dest)?;
+            self.reverse_propagate_check(dest, id, proto)?;
+            self.propagate_check(port_range, id, proto)?;
+        }
 
-        self.reverse_propagate(&cidr, id, proto)?;
-        self.propagate(port_range, id, proto)?;
+        // Apply modifications
+        for port_range in port_range.unfold() {
+            let proto = port_range.ports.proto;
+            let id = id.unwrap_or(0);
+
+            let port_ranges = self
+                .rule_map
+                .entry((id, port_range.ports.proto, Normalized::new(dest.clone())))
+                .and_modify(|e| {
+                    e.insert(port_range.clone());
+                })
+                .or_insert_with(|| HashSet::from([port_range.clone()]));
+
+            self.ebpf_store.insert(
+                &dest.as_key(id, proto as u8),
+                to_rule_store(&*port_ranges)
+                    .expect("Incorrect number of rules, should've errored in the previous check"),
+            )?;
+
+            self.reverse_propagate(dest, id, proto)?;
+            self.propagate(port_range, id, proto)?;
+        }
         Ok(())
     }
-    pub fn remove_rule(
-        &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
-    ) -> Result<()> {
-        if proto == Protocol::Generic {
-            let res = self.remove_rule_impl(id, cidr.clone(), ports.clone(), Protocol::TCP);
-            if res.is_ok() {
-                self.remove_rule_impl(id, cidr, ports, Protocol::UDP)
-            } else {
-                res
-            }
+
+    fn check_range_len(
+        &self,
+        port_range: &PortRange<T>,
+        id: u128,
+        dest: &T,
+    ) -> std::result::Result<(), RuleStoreError> {
+        if let Some(port_ranges) =
+            self.rule_map
+                .get(&(id, port_range.ports.proto, Normalized::new(dest.clone())))
+        {
+            to_rule_store(port_ranges.iter().chain([port_range]))?;
+            Ok(())
         } else {
-            self.remove_rule_impl(id, cidr, ports, proto)
+            Ok(())
         }
     }
 
-    pub fn remove_rule_impl(
+    pub(crate) fn remove_rule(
         &mut self,
-        id: u32,
-        cidr: Cidr<T>,
-        ports: impl Into<RangeInclusive<u16>> + Clone,
-        proto: Protocol,
+        RuleImpl {
+            id,
+            dest,
+            port_range,
+        }: &RuleImpl<T>,
     ) -> Result<()> {
         let port_range = PortRange {
-            ports: ports.into(),
-            origin: cidr.clone(),
+            ports: port_range.clone().unwrap_or_default(),
+            origin: dest.clone(),
         };
-        if let std::collections::hash_map::Entry::Occupied(_) =
-            self.rule_map.entry((id, proto, cidr)).and_modify(|e| {
-                e.remove(&port_range);
-            })
-        {
-            self.propagate_removal(port_range, proto, id)?;
-        }
 
+        for port_range in port_range.unfold() {
+            let proto = port_range.ports.proto;
+            let id = id.unwrap_or(0);
+            if let std::collections::hash_map::Entry::Occupied(_) = self
+                .rule_map
+                .entry((id, proto, Normalized::new(dest.clone())))
+                .and_modify(|e| {
+                    e.remove(&port_range);
+                })
+            {
+                self.propagate_removal(port_range, proto, id)?;
+            }
+        }
         Ok(())
     }
 
@@ -233,64 +250,136 @@ where
         &mut self,
         port_range: PortRange<T>,
         proto: Protocol,
-        id: u32,
+        id: u128,
     ) -> Result<()> {
         for ((k_id, k_proto, k_ip), v) in
             self.rule_map
                 .iter_mut()
                 .filter(|((k_id, k_proto, k_ip), _)| {
-                    *k_id == id && *k_proto == proto && port_range.origin.contains(k_ip)
+                    *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
                 })
         {
             v.remove(&port_range);
             if !v.is_empty() {
                 self.ebpf_store.insert(
-                    &k_ip.as_key(*k_id, *k_proto as u8),
-                    to_rule_store(v.clone()),
+                    &k_ip.ip.as_key(*k_id, *k_proto as u8),
+                    to_rule_store(&*v).expect("Should error on check before"),
                 )?;
             } else {
                 self.ebpf_store
-                    .remove(&k_ip.as_key(*k_id, *k_proto as u8))?;
+                    .remove(&k_ip.ip.as_key(*k_id, *k_proto as u8))?;
             }
         }
         Ok(())
     }
 
-    fn propagate(&mut self, port_range: PortRange<T>, id: u32, proto: Protocol) -> Result<()> {
+    fn propagate(&mut self, port_range: PortRange<T>, id: u128, proto: Protocol) -> Result<()> {
+        self.propagate_impl(port_range, id, proto, Method::Modify)
+    }
+
+    fn propagate_check(
+        &mut self,
+        port_range: PortRange<T>,
+        id: u128,
+        proto: Protocol,
+    ) -> Result<()> {
+        self.propagate_impl(port_range, id, proto, Method::Check)
+    }
+
+    fn propagate_impl(
+        &mut self,
+        port_range: PortRange<T>,
+        id: u128,
+        proto: Protocol,
+        method: Method,
+    ) -> Result<()> {
         for ((k_id, k_proto, k_ip), v) in
             self.rule_map
                 .iter_mut()
                 .filter(|((k_id, k_proto, k_ip), _)| {
-                    *k_id == id && *k_proto == proto && port_range.origin.contains(k_ip)
+                    *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
                 })
         {
-            v.insert(port_range.clone());
-            self.ebpf_store.insert(
-                &k_ip.as_key(*k_id, *k_proto as u8),
-                to_rule_store(v.clone()),
-            )?;
+            match method {
+                Method::Check => {
+                    let port_ranges = v.iter().chain([&port_range]);
+                    to_rule_store(port_ranges)?;
+                }
+                Method::Modify => {
+                    v.insert(port_range.clone());
+                    self.ebpf_store.insert(
+                        &k_ip.ip.as_key(*k_id, *k_proto as u8),
+                        to_rule_store(&*v).expect("Should error on check"),
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn reverse_propagate(&mut self, cidr: &T, id: u128, proto: Protocol) -> Result<()> {
+        self.reverse_propagate_impl(cidr, id, proto, Method::Modify)
+    }
+
+    fn reverse_propagate_check(&mut self, cidr: &T, id: u128, proto: Protocol) -> Result<()> {
+        self.reverse_propagate_impl(cidr, id, proto, Method::Modify)
+    }
+
+    fn reverse_propagate_impl(
+        &mut self,
+        cidr: &T,
+        id: u128,
+        proto: Protocol,
+        method: Method,
+    ) -> Result<()> {
+        let overlapping_parents = self.get_overlapping_parents(cidr, id, proto);
+        if let Some(port_ranges) =
+            self.rule_map
+                .get_mut(&(id, proto, Normalized::new(cidr.clone())))
+        {
+            match method {
+                Method::Check => {
+                    to_rule_store(port_ranges.union(&overlapping_parents))?;
+                }
+                Method::Modify => {
+                    port_ranges.extend(overlapping_parents);
+
+                    self.ebpf_store.insert(
+                        &cidr.as_key(id, proto as u8),
+                        to_rule_store(&*port_ranges).expect("Should error on check"),
+                    )?;
+                }
+            }
         }
         Ok(())
     }
 
-    fn reverse_propagate(&mut self, cidr: &Cidr<T>, id: u32, proto: Protocol) -> Result<()> {
-        let propagated_ranges: HashSet<_> = self
-            .rule_map
+    fn get_overlapping_parents(
+        &self,
+        cidr: &T,
+        id: u128,
+        proto: Protocol,
+    ) -> HashSet<PortRange<T>> {
+        self.rule_map
             .iter()
             .filter(|((k_id, k_proto, k_ip), _)| {
-                *k_id == id && *k_proto == proto && k_ip.contains(cidr)
+                *k_id == id && *k_proto == proto && k_ip.ip.contains(cidr)
             })
             .flat_map(|(_, v)| v)
             .cloned()
-            .collect();
-        if let Some(port_ranges) = self.rule_map.get_mut(&(id, proto, cidr.clone())) {
-            port_ranges.extend(propagated_ranges);
+            .collect()
+    }
+}
 
-            self.ebpf_store.insert(
-                &cidr.as_key(id, proto as u8),
-                to_rule_store(port_ranges.clone()),
-            )?;
-        }
-        Ok(())
+enum Method {
+    Check,
+    Modify,
+}
+
+fn port_range_check(port_range: &Option<rule::PortRange>) -> bool {
+    match port_range {
+        Some(range) => range.valid_range(),
+        None => true,
     }
 }

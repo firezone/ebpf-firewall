@@ -1,7 +1,7 @@
-use super::{end, start, RuleStore, MAX_RULES};
+use super::{end, start, RuleStore, MAX_RANGES};
 
 #[cfg(not(feature = "user"))]
-const MAX_ITER: u32 = MAX_RULES.ilog2() + 1;
+const MAX_ITER: u32 = MAX_RANGES.ilog2() + 1;
 
 impl RuleStore {
     // TODO: We need to check if this works in older kernels.
@@ -27,7 +27,7 @@ impl RuleStore {
         // Reimplementation of partition_point to satisfy verifier
         let mut size = self.rules_len as usize;
         // appeasing the verifier
-        if size >= MAX_RULES {
+        if size >= MAX_RANGES {
             return false;
         }
         let mut left = 0;
@@ -38,7 +38,7 @@ impl RuleStore {
             let mid = left + size / 2;
 
             // This can never happen but we need the verifier to believe us
-            let r = if mid < MAX_RULES {
+            let r = if mid < MAX_RANGES {
                 // SAFETY: We are already bound checking
                 *unsafe { self.rules.get_unchecked(mid) }
             } else {
@@ -51,6 +51,7 @@ impl RuleStore {
                 right = mid;
             }
             size = right - left;
+
             #[cfg(not(feature = "user"))]
             {
                 i += 1;
@@ -65,7 +66,7 @@ impl RuleStore {
             false
         } else {
             let indx = left - 1;
-            if indx >= MAX_RULES {
+            if indx >= MAX_RANGES {
                 return false;
             }
             // SAFETY: Again, we are already bound checking

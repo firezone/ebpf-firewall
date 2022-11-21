@@ -1,12 +1,8 @@
 // For now we will use this for CI testing that it just doesn't error out
 // (See logger-firewall to actually manual test)
-use std::{
-    net::{Ipv4Addr, Ipv6Addr},
-    str::FromStr,
-};
 
 use clap::Parser;
-use firewall::{init, Action, Classifier, ConfigHandler, Logger, Protocol, RuleTracker};
+use firewall::{Action, Firewall, Protocol, Rule};
 
 #[derive(Debug, Parser)]
 pub struct Opt {
@@ -36,80 +32,67 @@ async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt::init();
 
     bump_memlock_rlimit()?;
-    let bpf = init(opt.iface)?;
+    let mut firewall = Firewall::new(opt.iface)?;
 
-    let mut classifier = Classifier::new_ipv4(&bpf)?;
-    classifier.insert(Ipv4Addr::new(10, 13, 13, 2), 1)?;
+    firewall.add_id("10.13.13.2/32".parse().unwrap(), 1)?;
 
-    let mut classifier_v6 = Classifier::new_ipv6(&bpf)?;
-    classifier_v6.insert(Ipv6Addr::from_str("fafa::2").unwrap(), 1)?;
+    firewall.add_id("fafa::2/128".parse().unwrap(), 1)?;
 
-    let mut config_handler = ConfigHandler::new(&bpf)?;
-    config_handler.set_default_action(Action::Reject)?;
+    firewall.set_default_action(Action::Reject)?;
 
-    let mut rule_tracker = RuleTracker::new_ipv4(&bpf)?;
-    let mut rule_tracker_v6 = RuleTracker::new_ipv6(&bpf)?;
-
-    rule_tracker_v6.add_rule(
-        1,
-        "fafa::3/128".parse().unwrap(),
-        5000..=6000,
-        Protocol::TCP,
+    firewall.add_rule(
+        &Rule::new("fafa::3/128".parse().unwrap())
+            .with_id(1)
+            .with_range(5000..=6000, Protocol::TCP),
     )?;
 
-    rule_tracker.add_rule(1, "10.13.0.0/16".parse().unwrap(), 800..=900, Protocol::TCP)?;
-
-    rule_tracker.add_rule(
-        1,
-        "10.13.13.0/24".parse().unwrap(),
-        5000..=6000,
-        Protocol::TCP,
+    firewall.add_rule(
+        &Rule::new("10.13.0.0/16".parse().unwrap())
+            .with_id(1)
+            .with_range(800..=900, Protocol::TCP),
     )?;
 
-    rule_tracker.add_rule(
-        1,
-        "10.13.13.0/24".parse().unwrap(),
-        5800..=6000,
-        Protocol::TCP,
+    firewall.add_rule(
+        &Rule::new("10.13.13.0/24".parse().unwrap())
+            .with_id(1)
+            .with_range(5000..=6000, Protocol::TCP),
     )?;
 
-    rule_tracker.add_rule(
-        1,
-        "10.13.13.3/32".parse().unwrap(),
-        300..=400,
-        Protocol::UDP,
+    firewall.add_rule(
+        &Rule::new("10.13.13.0/24".parse().unwrap())
+            .with_id(1)
+            .with_range(5800..=6000, Protocol::TCP),
     )?;
 
-    rule_tracker.add_rule(
-        1,
-        "10.13.13.3/32".parse().unwrap(),
-        350..=400,
-        Protocol::TCP,
+    firewall.add_rule(
+        &Rule::new("10.13.13.3/32".parse().unwrap())
+            .with_id(1)
+            .with_range(300..=400, Protocol::UDP),
     )?;
 
-    rule_tracker.add_rule(
-        1,
-        "10.13.13.2/31".parse().unwrap(),
-        7000..=8000,
-        Protocol::Generic,
+    firewall.add_rule(
+        &Rule::new("10.13.13.3/32".parse().unwrap())
+            .with_id(1)
+            .with_range(350..=400, Protocol::TCP),
     )?;
 
-    rule_tracker.remove_rule(
-        1,
-        "10.13.13.0/24".parse().unwrap(),
-        5000..=6000,
-        Protocol::TCP,
+    firewall.add_rule(
+        &Rule::new("10.13.13.2/31".parse().unwrap())
+            .with_id(1)
+            .with_range(7000..=8000, Protocol::Generic),
     )?;
 
-    rule_tracker.add_rule(
-        0,
-        "10.13.13.3/32".parse().unwrap(),
-        5000..=6000,
-        Protocol::Generic,
+    firewall.remove_rule(
+        &Rule::new("10.13.13.0/24".parse().unwrap())
+            .with_id(1)
+            .with_range(5000..=6000, Protocol::TCP),
     )?;
 
-    let mut logger = Logger::new(&bpf)?;
-    logger.init()?;
+    firewall.add_rule(
+        &Rule::new("10.13.13.3/32".parse().unwrap()).with_range(5000..=6000, Protocol::Generic),
+    )?;
+
+    firewall.start_logging()?;
     tracing::info!("Program executed");
 
     Ok(())

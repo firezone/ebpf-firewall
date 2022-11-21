@@ -1,17 +1,27 @@
 use std::{path::PathBuf, process::ExitStatus};
 
+const EBPF_FEATURES: &[&str] = &["rules", "wireguard"];
+
 fn main() {
     println!("cargo:rerun-if-changed=../../ebpf/");
     println!("cargo:rerun-if-changed=../firewall-common/src/");
-    let wireguard_enabled = std::env::var("CARGO_FEATURE_WIREGUARD").is_ok();
     let endianess = std::env::var("CARGO_CFG_TARGET_ENDIAN").unwrap();
     let profile = std::env::var("PROFILE").unwrap();
     let out_dir = PathBuf::from("../userspace/target/artifacts");
-    let exit_status = build_ebpf(wireguard_enabled, out_dir, endianess, profile)
-        .expect("Couldn't build ebpf artifact");
+    let exit_status =
+        build_ebpf(out_dir, endianess, profile).expect("Couldn't build ebpf artifact");
     if !exit_status.success() {
         panic!("couldn't build ebpf, error: {exit_status}")
     }
+}
+
+fn get_ebpf_features() -> Vec<String> {
+    std::env::vars()
+        .map(|(k, _)| k)
+        .filter_map(|feat| feat.strip_prefix("CARGO_FEATURE_").map(ToString::to_string))
+        .map(|feat| feat.to_lowercase())
+        .filter(|feat| EBPF_FEATURES.contains(&feat.as_str()))
+        .collect()
 }
 
 fn get_architecture(endianess: String) -> &'static str {
@@ -23,7 +33,6 @@ fn get_architecture(endianess: String) -> &'static str {
 }
 
 pub fn build_ebpf(
-    wireguard_enabled: bool,
     out_dir: PathBuf,
     endianess: String,
     profile: String,
@@ -43,9 +52,10 @@ pub fn build_ebpf(
         "build-std=core",
     ];
 
-    if wireguard_enabled {
+    let features = get_ebpf_features();
+    for feature in features.iter() {
         args.push("--features");
-        args.push("wireguard");
+        args.push(feature);
     }
 
     if profile == "release" {
