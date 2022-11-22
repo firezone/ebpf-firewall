@@ -1,5 +1,6 @@
 use aya::{
     include_bytes_aligned,
+    maps::LpmTrie,
     programs::{tc, SchedClassifier, TcAttachType},
     Bpf,
 };
@@ -11,7 +12,8 @@ use crate::{
     config::ConfigHandler,
     logger::Logger,
     rule_tracker::{RuleTrackerV4, RuleTrackerV6},
-    Result, Rule,
+    Error::MapNotFound,
+    Result, Rule, RULE_MAP_IPV4, RULE_MAP_IPV6,
 };
 
 /// Represents a Firewall currently blocking/allowing packets.
@@ -109,8 +111,14 @@ impl Firewall {
     /// ```
     pub fn add_rule(&mut self, rule: &Rule) -> Result<()> {
         match &rule {
-            Rule::V4(r) => self.rule_tracker_v4.add_rule(&mut self.bpf, r),
-            Rule::V6(r) => self.rule_tracker_v6.add_rule(&mut self.bpf, r),
+            Rule::V4(r) => self.rule_tracker_v4.add_rule(
+                &mut LpmTrie::try_from(self.bpf.map_mut(RULE_MAP_IPV4).ok_or(MapNotFound)?)?,
+                r,
+            ),
+            Rule::V6(r) => self.rule_tracker_v6.add_rule(
+                &mut LpmTrie::try_from(self.bpf.map_mut(RULE_MAP_IPV6).ok_or(MapNotFound)?)?,
+                r,
+            ),
         }
     }
 
@@ -126,8 +134,14 @@ impl Firewall {
     /// ```
     pub fn remove_rule(&mut self, rule: &Rule) -> Result<()> {
         match &rule {
-            Rule::V4(r) => self.rule_tracker_v4.remove_rule(&mut self.bpf, r),
-            Rule::V6(r) => self.rule_tracker_v6.remove_rule(&mut self.bpf, r),
+            Rule::V4(r) => self.rule_tracker_v4.remove_rule(
+                &mut LpmTrie::try_from(self.bpf.map_mut(RULE_MAP_IPV4).ok_or(MapNotFound)?)?,
+                r,
+            ),
+            Rule::V6(r) => self.rule_tracker_v6.remove_rule(
+                &mut LpmTrie::try_from(self.bpf.map_mut(RULE_MAP_IPV6).ok_or(MapNotFound)?)?,
+                r,
+            ),
         }
     }
 
