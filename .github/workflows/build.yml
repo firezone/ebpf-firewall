@@ -38,7 +38,7 @@ jobs:
         run: cargo install bpf-linker
       - name: Build
         working-directory: ./userspace
-        run: cargo build --verbose --example ci-run --release
+        run: cargo build --verbose --example ci-run --release --target x86_64-unknown-linux-musl
       - name: Run tests
         working-directory: ./userspace
         run: cargo test --verbose
@@ -49,7 +49,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ci-run
-          path: userspace/target/release/examples/ci-run
+          path: userspace/target/x86_64-unknown-linux-musl/release/examples/ci-run
 
   test-run:
     strategy:
@@ -63,7 +63,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ci-run
-          path: ./userspace/target/release/example/ci-run
+          path: userspace/target/x86_64-unknown-linux-musl/release/examples/ci-run
       - name: Cache Vagrant boxes
         uses: actions/cache@v2
         with:
