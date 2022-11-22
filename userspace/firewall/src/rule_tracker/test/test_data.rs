@@ -16,88 +16,89 @@ use crate::{
     Protocol::{self, Generic, TCP, UDP},
 };
 
-pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Net, ()> {
-    let mut rule_tracker = RuleTracker::<Ipv4Net, _>::new_test().unwrap();
+pub(crate) fn prepare_ipv4() -> RuleTracker<Ipv4Net> {
+    let mut rule_tracker = RuleTracker::<Ipv4Net>::new_test().unwrap();
 
     let cidr = "10.1.1.3/32".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(10..=20, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(10..=20, Generic))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(15..=20, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(15..=20, Generic))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(15..=25, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(15..=25, Generic))
         .unwrap();
     let cidr = "10.1.0.0/16".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(200..=500, UDP))
+        .add_rule(&mut (), &rule.clone().with_range(200..=500, UDP))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(12..=16, TCP))
+        .add_rule(&mut (), &rule.clone().with_range(12..=16, TCP))
         .unwrap();
     let cidr = "10.1.1.3/32".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(18..=40, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(18..=40, Generic))
         .unwrap();
     let cidr = "10.1.1.0/24".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(200..=800, UDP))
+        .add_rule(&mut (), &rule.clone().with_range(200..=800, UDP))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(999..=999, TCP))
+        .add_rule(&mut (), &rule.clone().with_range(999..=999, TCP))
         .unwrap();
     let cidr = "10.1.0.0/16".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(6000..=8000, TCP))
+        .add_rule(&mut (), &rule.clone().with_range(6000..=8000, TCP))
         .unwrap();
     rule_tracker
 }
 
-pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Net, ()> {
-    let mut rule_tracker = RuleTracker::<Ipv6Net, _>::new_test().unwrap();
+pub(crate) fn prepare_ipv6() -> RuleTracker<Ipv6Net> {
+    let mut rule_tracker = RuleTracker::<Ipv6Net>::new_test().unwrap();
 
     let cidr = "fafa::1:0:0:3/128".parse().unwrap();
     let rule = RuleImpl::new(cidr);
+
     rule_tracker
-        .add_rule(&rule.clone().with_range(10..=20, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(10..=20, Generic))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(15..=20, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(15..=20, Generic))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(15..=25, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(15..=25, Generic))
         .unwrap();
     let cidr = "fafa::/64".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(200..=500, UDP))
+        .add_rule(&mut (), &rule.clone().with_range(200..=500, UDP))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.with_range(12..=16, TCP))
+        .add_rule(&mut (), &rule.with_range(12..=16, TCP))
         .unwrap();
     let cidr = "fafa::1:0:0:3/128".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(18..=40, Generic))
+        .add_rule(&mut (), &rule.clone().with_range(18..=40, Generic))
         .unwrap();
     let cidr = "fafa::1:0:0:0/96".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(200..=800, UDP))
+        .add_rule(&mut (), &rule.clone().with_range(200..=800, UDP))
         .unwrap();
     rule_tracker
-        .add_rule(&rule.clone().with_range(999..=999, TCP))
+        .add_rule(&mut (), &rule.clone().with_range(999..=999, TCP))
         .unwrap();
     let cidr = "fafa::/64".parse().unwrap();
     let rule = RuleImpl::new(cidr);
     rule_tracker
-        .add_rule(&rule.clone().with_range(6000..=8000, TCP))
+        .add_rule(&mut (), &rule.clone().with_range(6000..=8000, TCP))
         .unwrap();
     rule_tracker
 }
@@ -199,7 +200,7 @@ where
     T: AsNum + Eq + Hash + Clone + AsOctets + AsKey + Normalize,
     T::Octets: AsRef<[u8]>,
 {
-    rule_tracker: RuleTracker<T, ()>,
+    rule_tracker: RuleTracker<T>,
     expect_true: HashMap<(u128, T), HashSet<Port>>,
     expect_false: HashMap<(u128, T), HashSet<Port>>,
 }
@@ -254,7 +255,7 @@ where
         }
     }
 
-    pub(crate) fn with(rule_tracker: RuleTracker<T, ()>) -> Self {
+    pub(crate) fn with(rule_tracker: RuleTracker<T>) -> Self {
         Self {
             rule_tracker,
             expect_true: Default::default(),
