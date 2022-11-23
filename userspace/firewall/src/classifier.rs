@@ -34,10 +34,7 @@ impl<T: AsOctets> Classifier<T>
 where
     T::Octets: Pod + Hash + Eq,
 {
-    fn get_store<'a, 'b>(
-        &'a self,
-        bpf: &'b mut Bpf,
-    ) -> Result<HashMap<&'b mut MapData, T::Octets, ID>> {
+    fn get_store<'a>(&self, bpf: &'a mut Bpf) -> Result<HashMap<&'a mut MapData, T::Octets, ID>> {
         Ok(HashMap::try_from(
             bpf.map_mut(&self.store_name).ok_or(Error::MapNotFound)?,
         )?)
