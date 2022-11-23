@@ -208,6 +208,22 @@ where
         }
     }
 
+    fn check_range_len_remove(
+        &self,
+        port_range: &PortRange<T>,
+        id: u128,
+        dest: &T,
+    ) -> std::result::Result<(), RuleStoreError> {
+        if let Some(port_ranges) =
+            self.rule_map
+                .get(&(id, port_range.ports.proto, Normalized::new(dest.clone())))
+        {
+            to_rule_store(port_ranges.iter().filter(|p| p != &port_range))?;
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
     pub(crate) fn remove_rule(
         &mut self,
         store: &mut impl RuleTrie<T::KeySize, RuleStore>,
@@ -225,6 +241,13 @@ where
         for port_range in port_range.unfold() {
             let proto = port_range.ports.proto;
             let id = id.unwrap_or(0);
+            self.check_range_len_remove(&port_range, id, dest)?;
+            self.propagate_removal_check(&port_range, proto, id)?;
+        }
+
+        for port_range in port_range.unfold() {
+            let proto = port_range.ports.proto;
+            let id = id.unwrap_or(0);
             if let std::collections::hash_map::Entry::Occupied(_) = self
                 .rule_map
                 .entry((id, proto, Normalized::new(dest.clone())))
@@ -233,6 +256,26 @@ where
                 })
             {
                 self.propagate_removal(store, port_range, proto, id)?;
+            }
+
+            self.rule_map.retain(|_, v| !v.is_empty());
+        }
+        Ok(())
+    }
+
+    fn propagate_removal_check(
+        &mut self,
+        port_range: &PortRange<T>,
+        proto: Protocol,
+        id: u128,
+    ) -> Result<()> {
+        for (_, v) in self.rule_map.iter().filter(|((k_id, k_proto, k_ip), _)| {
+            *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
+        }) {
+            let mut v = v.clone();
+            v.remove(&port_range);
+            if !v.is_empty() {
+                to_rule_store(&v)?;
             }
         }
         Ok(())
