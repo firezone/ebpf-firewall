@@ -273,7 +273,7 @@ where
             *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
         }) {
             let mut v = v.clone();
-            v.remove(&port_range);
+            v.remove(port_range);
             if !v.is_empty() {
                 to_rule_store(&v)?;
             }
