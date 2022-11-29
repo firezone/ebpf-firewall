@@ -17,15 +17,14 @@ where
 pub(crate) type ClassifierV6 = Classifier<Ipv6Net>;
 pub(crate) type ClassifierV4 = Classifier<Ipv4Net>;
 
-impl Classifier<Ipv4Net> {
+impl<T: AsOctets> Classifier<T>
+where
+    T::Octets: Pod + Eq + Hash,
+{
     pub fn new() -> Result<Self> {
-        Self::new_with_name()
-    }
-}
-
-impl Classifier<Ipv6Net> {
-    pub fn new() -> Result<Self> {
-        Self::new_with_name()
+        Ok(Self {
+            userland_map: Default::default(),
+        })
     }
 }
 
@@ -86,10 +85,107 @@ where
         self.userland_map.remove(&id);
         Ok(())
     }
+}
 
-    fn new_with_name() -> Result<Self> {
-        Ok(Self {
-            userland_map: Default::default(),
-        })
+#[cfg(test)]
+mod test {
+    use std::collections::HashSet;
+
+    use super::ClassifierV4;
+    use crate::{
+        as_octet::AsOctets, bpf_store::test_store::HashTestStore, classifier::ClassifierV6,
+    };
+
+    #[test]
+    fn insert_v4() {
+        let mut classifier = ClassifierV4::new().expect("Couldn't get classifier");
+        let mut store = HashTestStore::new();
+        classifier
+            .insert(&mut store, "10.0.0.1/32".parse().unwrap(), 1u128)
+            .expect("Couldn't insert into store");
+        let mut res = HashSet::new();
+        res.insert([10, 0, 0, 1]);
+        assert_eq!(classifier.userland_map.get(&1u128), Some(&res));
+    }
+
+    #[test]
+    fn insert_v6() {
+        let mut classifier = ClassifierV6::new().expect("Couldn't get classifier");
+        let ip = "fe80::1/128".parse().unwrap();
+        let mut store = HashTestStore::new();
+        classifier
+            .insert(&mut store, ip, 1u128)
+            .expect("Couldn't insert into store");
+        let mut res = HashSet::new();
+        res.insert(ip.as_octets());
+        assert_eq!(classifier.userland_map.get(&1u128), Some(&res));
+    }
+
+    #[test]
+    fn remove_v4() {
+        let mut classifier = ClassifierV4::new().expect("Couldn't get classifier");
+        let ip = "10.0.0.1/32".parse().unwrap();
+        let mut store = HashTestStore::new();
+        classifier
+            .insert(&mut store, ip, 1u128)
+            .expect("Couldn't insert into store");
+        let mut res = HashSet::new();
+        res.insert(ip.as_octets());
+        assert_eq!(classifier.userland_map.get(&1u128), Some(&res));
+        classifier
+            .remove(&mut store, &ip)
+            .expect("Couldn't insert into store");
+        assert_eq!(classifier.userland_map.get(&1u128), None);
+    }
+
+    #[test]
+    fn remove_v6() {
+        let mut classifier = ClassifierV6::new().expect("Couldn't get classifier");
+        let ip = "fe80::1/128".parse().unwrap();
+        let mut store = HashTestStore::new();
+        classifier
+            .insert(&mut store, ip, 1u128)
+            .expect("Couldn't insert into store");
+        let mut res = HashSet::new();
+        res.insert(ip.as_octets());
+        assert_eq!(classifier.userland_map.get(&1u128), Some(&res));
+        classifier
+            .remove(&mut store, &ip)
+            .expect("Couldn't insert into store");
+        assert_eq!(classifier.userland_map.get(&1u128), None);
+    }
+
+    #[test]
+    fn remove_v4_by_id() {
+        let mut classifier = ClassifierV4::new().expect("Couldn't get classifier");
+        let ip = "10.0.0.1/32".parse().unwrap();
+        let mut store = HashTestStore::new();
+        classifier
+            .insert(&mut store, ip, 1u128)
+            .expect("Couldn't insert into store");
+        let mut res = HashSet::new();
+        res.insert(ip.as_octets());
+        assert_eq!(classifier.userland_map.get(&1u128), Some(&res));
+        classifier
+            .remove_by_id(&mut store, 1u128)
+            .expect("Couldn't insert into store");
+        assert_eq!(classifier.userland_map.get(&1u128), None);
+    }
+
+    #[test]
+    fn remove_v6_by_id() {
+        let mut classifier = ClassifierV6::new().expect("Couldn't get classifier");
+        let ip = "fe80::1/128".parse().unwrap();
+        let mut store = HashTestStore::new();
+        classifier
+            .insert(&mut store, ip, 1u128)
+            .expect("Couldn't insert into store");
+        let mut res = HashSet::new();
+        res.insert(ip.as_octets());
+        assert_eq!(classifier.userland_map.get(&1u128), Some(&res));
+        classifier
+            .remove_by_id(&mut store, 1u128)
+            .expect("Couldn't insert into store");
+        assert_eq!(classifier.userland_map.get(&1u128), None);
     }
 }

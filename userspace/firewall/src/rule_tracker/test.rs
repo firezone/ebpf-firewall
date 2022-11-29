@@ -2,10 +2,9 @@
 
 mod test_data;
 
-use aya::Pod;
-
 use crate::{
     as_octet::AsOctets,
+    bpf_store::test_store::TestStore,
     cidr::{AsKey, Normalize},
     rule::RuleImpl,
     Protocol::{Generic, UDP},
@@ -13,41 +12,9 @@ use crate::{
 };
 
 use core::fmt::Debug;
-use std::{collections::HashMap, marker::PhantomData};
+use std::collections::HashMap;
 
 use self::test_data::TestRun;
-
-use crate::bpf_store::BpfStore;
-
-struct TestStore<K, V> {
-    _phantom: PhantomData<(K, V)>,
-}
-
-impl<K, V> TestStore<K, V> {
-    fn new() -> Self {
-        Self {
-            _phantom: PhantomData {},
-        }
-    }
-}
-
-impl<K: Pod, V: Pod + Default> BpfStore for TestStore<K, V> {
-    type K = K;
-
-    type V = V;
-
-    fn insert(&mut self, _: &Self::K, _: Self::V) -> std::result::Result<(), aya::maps::MapError> {
-        Ok(())
-    }
-
-    fn get(&self, _: &Self::K) -> std::result::Result<Self::V, aya::maps::MapError> {
-        Ok(V::default())
-    }
-
-    fn remove(&mut self, _: &Self::K) -> std::result::Result<(), aya::maps::MapError> {
-        Ok(())
-    }
-}
 
 impl<T> crate::rule_tracker::RuleTracker<T>
 where
