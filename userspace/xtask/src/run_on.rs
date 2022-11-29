@@ -18,10 +18,10 @@ end
 "#;
 
 const KERNEL_VERSION: phf::Map<&'static str, &'static str> = phf_map! {
-  "5.15" => "generic/alpine317",
-  "5.10" => "generic/alpine313",
-  "5.4" => "generic/alpine312",
-  "4.18" => "generic/centos8",
+    "5.15" => "generic/alpine317",
+    "5.10" => "generic/alpine313",
+    "5.4" => "generic/alpine312",
+    "4.18" => "generic/centos8",
 };
 
 fn get_file(version: &str, target_dir: &str, target_source: &str) -> Result<String> {
