@@ -1,38 +1,7 @@
 use aya::{maps::lpm_trie::Key, Pod};
 use ipnet::{Ipv4Net, Ipv6Net};
-use std::ops::{BitAnd, Not, Shr};
 
 use crate::as_octet::AsOctets;
-
-pub trait AsNum {
-    type Num: BitAnd<Output = Self::Num>
-        + CheckedShr
-        + Shr<u8>
-        + Not<Output = Self::Num>
-        + Default
-        + PartialEq;
-    fn as_num(&self) -> Self::Num;
-    fn max() -> Self::Num;
-}
-
-pub trait CheckedShr
-where
-    Self: Sized,
-{
-    fn checked_shr(self, rhs: u32) -> Option<Self>;
-}
-
-impl CheckedShr for u32 {
-    fn checked_shr(self, rhs: u32) -> Option<Self> {
-        u32::checked_shr(self, rhs)
-    }
-}
-
-impl CheckedShr for u128 {
-    fn checked_shr(self, rhs: u32) -> Option<Self> {
-        u128::checked_shr(self, rhs)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Normalized<T>
@@ -48,30 +17,6 @@ where
 {
     pub(crate) fn new(ip: T) -> Self {
         Self { ip: ip.normalize() }
-    }
-}
-
-impl AsNum for Ipv4Net {
-    type Num = u32;
-
-    fn as_num(&self) -> Self::Num {
-        u32::from(self.addr())
-    }
-
-    fn max() -> Self::Num {
-        u32::MAX
-    }
-}
-
-impl AsNum for Ipv6Net {
-    type Num = u128;
-
-    fn as_num(&self) -> Self::Num {
-        u128::from(self.addr())
-    }
-
-    fn max() -> Self::Num {
-        u128::MAX
     }
 }
 

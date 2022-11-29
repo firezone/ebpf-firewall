@@ -85,3 +85,13 @@ pub struct RuleStore {
 
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for RuleStore {}
+
+#[cfg(feature = "user")]
+impl std::default::Default for RuleStore {
+    fn default() -> Self {
+        Self {
+            rules: [0; MAX_RANGES],
+            rules_len: 0,
+        }
+    }
+}

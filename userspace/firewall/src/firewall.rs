@@ -1,6 +1,8 @@
+use std::convert::TryFrom;
+
 use aya::{
     include_bytes_aligned,
-    maps::LpmTrie,
+    maps::{HashMap, LpmTrie},
     programs::{tc, SchedClassifier, TcAttachType},
     Bpf,
 };
@@ -13,7 +15,7 @@ use crate::{
     logger::Logger,
     rule_tracker::{RuleTrackerV4, RuleTrackerV6},
     Error::MapNotFound,
-    Result, Rule, RULE_MAP_IPV4, RULE_MAP_IPV6,
+    Result, Rule, RULE_MAP_IPV4, RULE_MAP_IPV6, SOURCE_ID_IPV4, SOURCE_ID_IPV6,
 };
 
 /// Represents a Firewall currently blocking/allowing packets.
@@ -163,8 +165,16 @@ impl Firewall {
     /// ```
     pub fn add_id(&mut self, ip: IpNet, id: u128) -> Result<()> {
         match ip {
-            IpNet::V4(ip) => self.classifier_v4.insert(&mut self.bpf, ip, id),
-            IpNet::V6(ip) => self.classifier_v6.insert(&mut self.bpf, ip, id),
+            IpNet::V4(ip) => self.classifier_v4.insert(
+                &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV4).ok_or(MapNotFound)?)?,
+                ip,
+                id,
+            ),
+            IpNet::V6(ip) => self.classifier_v6.insert(
+                &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV6).ok_or(MapNotFound)?)?,
+                ip,
+                id,
+            ),
         }
     }
 
@@ -179,8 +189,14 @@ impl Firewall {
     /// ```
     pub fn remove_id(&mut self, ip: &IpNet) -> Result<()> {
         match ip {
-            IpNet::V4(ip) => self.classifier_v4.remove(&mut self.bpf, ip),
-            IpNet::V6(ip) => self.classifier_v6.remove(&mut self.bpf, ip),
+            IpNet::V4(ip) => self.classifier_v4.remove(
+                &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV4).ok_or(MapNotFound)?)?,
+                ip,
+            ),
+            IpNet::V6(ip) => self.classifier_v6.remove(
+                &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV6).ok_or(MapNotFound)?)?,
+                ip,
+            ),
         }
     }
 
@@ -196,8 +212,14 @@ impl Firewall {
     /// fw.remove_by_id(1).unwrap();
     /// ```
     pub fn remove_by_id(&mut self, id: u128) -> Result<()> {
-        self.classifier_v4.remove_by_id(&mut self.bpf, id)?;
-        self.classifier_v6.remove_by_id(&mut self.bpf, id)?;
+        self.classifier_v4.remove_by_id(
+            &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV4).ok_or(MapNotFound)?)?,
+            id,
+        )?;
+        self.classifier_v6.remove_by_id(
+            &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV6).ok_or(MapNotFound)?)?,
+            id,
+        )?;
         Ok(())
     }
 

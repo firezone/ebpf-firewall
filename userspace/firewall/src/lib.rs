@@ -34,6 +34,7 @@
 //! fw.start_logging().unwrap();
 //! ```
 mod as_octet;
+mod bpf_store;
 mod cidr;
 mod classifier;
 mod config;

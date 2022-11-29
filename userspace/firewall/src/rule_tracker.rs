@@ -1,4 +1,3 @@
-mod rule_trie;
 mod test;
 
 use std::{
@@ -7,24 +6,25 @@ use std::{
     hash::Hash,
 };
 
+use aya::maps::lpm_trie::Key;
 use firewall_common::{RuleStore, RuleStoreError};
 use ipnet::{Ipv4Net, Ipv6Net};
 
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, Contains, Normalize, Normalized},
+    cidr::{AsKey, Contains, Normalize, Normalized},
     rule::{self, Protocol, RuleImpl},
     Error, Result,
 };
 
-use self::rule_trie::RuleTrie;
+use crate::bpf_store::BpfStore;
 
 type StoreResult<T = ()> = std::result::Result<T, RuleStoreError>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PortRange<T>
 where
-    T: AsNum + AsOctets,
+    T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     ports: rule::PortRange,
@@ -33,7 +33,7 @@ where
 
 impl<T> PortRange<T>
 where
-    T: AsNum + AsOctets + Clone,
+    T: AsOctets + Clone,
     T::Octets: AsRef<[u8]>,
 {
     fn unfold(&self) -> Vec<Self> {
@@ -52,7 +52,7 @@ fn to_rule_store<'a, T>(
     port_ranges: impl IntoIterator<Item = &'a PortRange<T>>,
 ) -> StoreResult<RuleStore>
 where
-    T: AsNum + AsOctets + 'a,
+    T: AsOctets + 'a,
     T::Octets: AsRef<[u8]>,
 {
     let port_ranges = &mut port_ranges.into_iter().collect::<Vec<_>>()[..];
@@ -61,7 +61,7 @@ where
 
 fn resolve_overlap<T>(port_ranges: &mut [&PortRange<T>]) -> Vec<(u16, u16)>
 where
-    T: AsNum + AsOctets,
+    T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
     let mut res = Vec::new();
@@ -90,7 +90,7 @@ pub(crate) type RuleTrackerV6 = RuleTracker<Ipv6Net>;
 
 pub(crate) struct RuleTracker<T>
 where
-    T: AsNum + AsOctets + AsKey + Normalize,
+    T: AsOctets + AsKey + Normalize,
     T::Octets: AsRef<[u8]>,
 {
     rule_map: HashMap<(u128, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
@@ -98,7 +98,7 @@ where
 
 impl<T> Debug for RuleTracker<T>
 where
-    T: AsNum + AsKey + Normalize + AsOctets + Debug,
+    T: AsKey + Normalize + AsOctets + Debug,
     T::Octets: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -122,7 +122,7 @@ impl RuleTracker<Ipv6Net> {
 
 impl<T> RuleTracker<T>
 where
-    T: AsNum + Eq + Hash + Clone + AsKey + Normalize,
+    T: Eq + Hash + Clone + AsKey + Normalize,
     T: AsOctets,
     T::Octets: AsRef<[u8]>,
 {
@@ -135,12 +135,12 @@ where
 
 impl<T> RuleTracker<T>
 where
-    T: AsNum + AsKey + AsOctets + Eq + Hash + Clone + Normalize + Contains,
+    T: AsKey + AsOctets + Eq + Hash + Clone + Normalize + Contains,
     T::Octets: AsRef<[u8]>,
 {
     pub(crate) fn add_rule(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         RuleImpl {
             id,
             dest,
@@ -226,7 +226,7 @@ where
     }
     pub(crate) fn remove_rule(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         RuleImpl {
             id,
             dest,
@@ -283,7 +283,7 @@ where
 
     fn propagate_removal(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
         proto: Protocol,
         id: u128,
@@ -310,7 +310,7 @@ where
 
     fn propagate(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
         id: u128,
         proto: Protocol,
@@ -320,7 +320,7 @@ where
 
     fn propagate_check(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
         id: u128,
         proto: Protocol,
@@ -330,7 +330,7 @@ where
 
     fn propagate_impl(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
         id: u128,
         proto: Protocol,
@@ -363,7 +363,7 @@ where
 
     fn reverse_propagate(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         cidr: &T,
         id: u128,
         proto: Protocol,
@@ -373,7 +373,7 @@ where
 
     fn reverse_propagate_check(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         cidr: &T,
         id: u128,
         proto: Protocol,
@@ -383,7 +383,7 @@ where
 
     fn reverse_propagate_impl(
         &mut self,
-        store: &mut impl RuleTrie<T::KeySize, RuleStore>,
+        store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         cidr: &T,
         id: u128,
         proto: Protocol,
