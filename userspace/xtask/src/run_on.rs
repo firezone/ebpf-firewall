@@ -60,7 +60,7 @@ impl Vagrant {
         let temp_dir = tempdir()?;
         let file_path = temp_dir.path().join("Vagrantfile");
         let mut file = File::create(file_path)?;
-        writeln!(file, "{}", contents)?;
+        writeln!(file, "{contents}")?;
 
         let mut this = Self { temp_dir };
         this.run(&["up"])?;
