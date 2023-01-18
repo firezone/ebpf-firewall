@@ -8,6 +8,7 @@ use aya::{
 };
 use firewall_common::Action;
 use ipnet::IpNet;
+use tracing::instrument;
 
 use crate::{
     classifier::{ClassifierV4, ClassifierV6},
@@ -48,7 +49,8 @@ impl Firewall {
     /// # use firewall::Firewall;
     /// let fw = Firewall::new("eth0").unwrap();
     /// ```
-    pub fn new(iface: impl AsRef<str>) -> Result<Firewall> {
+    #[instrument(level = "trace")]
+    pub fn new(iface: impl AsRef<str> + std::fmt::Debug) -> Result<Firewall> {
         #[cfg(debug_assertions)]
         let mut bpf = Bpf::load(include_bytes_aligned!(
             "../../target/artifacts/bpfel-unknown-none/debug/firewall-ebpf"
@@ -57,13 +59,22 @@ impl Firewall {
         let mut bpf = Bpf::load(include_bytes_aligned!(
             "../../target/artifacts/bpfel-unknown-none/release/firewall-ebpf"
         ))?;
+        tracing::trace!("Created bpf program in memory");
 
         // error adding clsact to the interface if it is already added is harmless
         // the full cleanup can be done with 'sudo tc qdisc del dev eth0 clsact'.
-        let _ = tc::qdisc_add_clsact(iface.as_ref());
-        let program: &mut SchedClassifier = bpf.program_mut("ebpf_firewall").unwrap().try_into()?;
+        tc::qdisc_add_clsact(iface.as_ref())?;
+        tracing::trace!("Added qdisc clsact to {}", iface.as_ref());
+
+        let program: &mut SchedClassifier = bpf
+            .program_mut("ebpf_firewall")
+            .expect("Couldn't retrieve reference to program with given name")
+            .try_into()?;
         program.load()?;
+        tracing::trace!("Loaded ebpf program");
+
         program.attach(iface.as_ref(), TcAttachType::Ingress, 0)?;
+        tracing::trace!("Attached program to interface");
 
         let rule_tracker_v4 = RuleTrackerV4::new()?;
         let rule_tracker_v6 = RuleTrackerV6::new()?;
@@ -71,6 +82,7 @@ impl Firewall {
         let classifier_v6 = ClassifierV6::new()?;
         let logger = Logger::new()?;
         let config = ConfigHandler::new()?;
+        tracing::trace!("Successfully created userspace references to ebpf maps");
 
         Ok(Self {
             bpf,
@@ -96,6 +108,7 @@ impl Firewall {
     /// let mut fw = Firewall::new("eth0").unwrap();
     /// fw.set_default_action(Action::Accept).unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn set_default_action(&mut self, action: Action) -> Result<()> {
         self.config.set_default_action(&mut self.bpf, action)
     }
@@ -111,6 +124,7 @@ impl Firewall {
     /// let rule = Rule::new("10.0.0.5/32".parse().unwrap());
     /// fw.add_rule(&rule).unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn add_rule(&mut self, rule: &Rule) -> Result<()> {
         match &rule {
             Rule::V4(r) => self.rule_tracker_v4.add_rule(
@@ -134,6 +148,7 @@ impl Firewall {
     /// fw.add_rule(&rule).unwrap();
     /// fw.remove_rule(&rule).unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn remove_rule(&mut self, rule: &Rule) -> Result<()> {
         match &rule {
             Rule::V4(r) => self.rule_tracker_v4.remove_rule(
@@ -163,6 +178,7 @@ impl Firewall {
     /// let rule = Rule::new("10.0.1.0/24".parse().unwrap()).with_id(1);
     /// fw.add_rule(&rule).unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn add_id(&mut self, ip: IpNet, id: u128) -> Result<()> {
         match ip {
             IpNet::V4(ip) => self.classifier_v4.insert(
@@ -187,6 +203,7 @@ impl Firewall {
     /// fw.add_id("10.0.0.5/32".parse().unwrap(), 1).unwrap();
     /// fw.remove_id(&"10.0.0.6/32".parse().unwrap()).unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn remove_id(&mut self, ip: &IpNet) -> Result<()> {
         match ip {
             IpNet::V4(ip) => self.classifier_v4.remove(
@@ -211,6 +228,7 @@ impl Firewall {
     /// // Removes both 10.0.0.5 and 10.0.0.6
     /// fw.remove_by_id(1).unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn remove_by_id(&mut self, id: u128) -> Result<()> {
         self.classifier_v4.remove_by_id(
             &mut HashMap::try_from(self.bpf.map_mut(SOURCE_ID_IPV4).ok_or(MapNotFound)?)?,
@@ -231,6 +249,7 @@ impl Firewall {
     /// let mut fw = Firewall::new("eth0").unwrap();
     /// fw.start_logging().unwrap();
     /// ```
+    #[instrument(level = "trace", skip(self))]
     pub fn start_logging(&mut self) -> Result<()> {
         self.logger.init(&mut self.bpf)
     }
