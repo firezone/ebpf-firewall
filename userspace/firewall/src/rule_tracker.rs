@@ -88,24 +88,35 @@ where
 pub(crate) type RuleTrackerV4 = RuleTracker<Ipv4Net>;
 pub(crate) type RuleTrackerV6 = RuleTracker<Ipv6Net>;
 
+// New type used for better logging
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+struct Id(u128);
+
+impl Debug for Id {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", uuid::Uuid::from_u128(self.0))
+    }
+}
+
+impl From<u128> for Id {
+    fn from(value: u128) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Id> for u128 {
+    fn from(value: Id) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct RuleTracker<T>
 where
     T: AsOctets + AsKey + Normalize,
     T::Octets: AsRef<[u8]>,
 {
-    rule_map: HashMap<(u128, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
-}
-
-impl<T> Debug for RuleTracker<T>
-where
-    T: AsKey + Normalize + AsOctets + Debug,
-    T::Octets: AsRef<[u8]>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RuleTracker")
-            .field("rule_map", &self.rule_map)
-            .finish()
-    }
+    rule_map: HashMap<(Id, Protocol, Normalized<T>), HashSet<PortRange<T>>>,
 }
 
 impl RuleTracker<Ipv4Net> {
@@ -156,10 +167,11 @@ where
             origin: dest.clone(),
         };
 
+        let id: Option<Id> = id.map(|id| id.into());
         // Checks to prevent rollback
         for port_range in port_range.unfold() {
             let proto = port_range.ports.proto;
-            let id = id.unwrap_or(0);
+            let id = id.unwrap_or_default();
 
             self.check_range_len(&port_range, id, dest)?;
             self.reverse_propagate_check(store, dest, id, proto)?;
@@ -169,18 +181,22 @@ where
         // Apply modifications
         for port_range in port_range.unfold() {
             let proto = port_range.ports.proto;
-            let id = id.unwrap_or(0);
+            let id = id.unwrap_or_default();
 
             let port_ranges = self
                 .rule_map
-                .entry((id, port_range.ports.proto, Normalized::new(dest.clone())))
+                .entry((
+                    id.into(),
+                    port_range.ports.proto,
+                    Normalized::new(dest.clone()),
+                ))
                 .and_modify(|e| {
                     e.insert(port_range.clone());
                 })
                 .or_insert_with(|| HashSet::from([port_range.clone()]));
 
             store.insert(
-                &dest.as_key(id, proto as u8),
+                &dest.as_key(id.0, proto as u8),
                 to_rule_store(&*port_ranges)
                     .expect("Incorrect number of rules, should've errored in the previous check"),
             )?;
@@ -194,13 +210,14 @@ where
     fn check_range_len(
         &self,
         port_range: &PortRange<T>,
-        id: u128,
+        id: Id,
         dest: &T,
     ) -> std::result::Result<(), RuleStoreError> {
-        if let Some(port_ranges) =
-            self.rule_map
-                .get(&(id, port_range.ports.proto, Normalized::new(dest.clone())))
-        {
+        if let Some(port_ranges) = self.rule_map.get(&(
+            id.into(),
+            port_range.ports.proto,
+            Normalized::new(dest.clone()),
+        )) {
             to_rule_store(port_ranges.iter().chain([port_range]))?;
             Ok(())
         } else {
@@ -211,7 +228,7 @@ where
     fn check_range_len_remove(
         &self,
         port_range: &PortRange<T>,
-        id: u128,
+        id: Id,
         dest: &T,
     ) -> std::result::Result<(), RuleStoreError> {
         if let Some(port_ranges) =
@@ -238,19 +255,20 @@ where
             origin: dest.clone(),
         };
 
+        let id = id.map(From::from);
         for port_range in port_range.unfold() {
             let proto = port_range.ports.proto;
-            let id = id.unwrap_or(0);
+            let id = id.unwrap_or_default();
             self.check_range_len_remove(&port_range, id, dest)?;
             self.propagate_removal_check(&port_range, proto, id)?;
         }
 
         for port_range in port_range.unfold() {
             let proto = port_range.ports.proto;
-            let id = id.unwrap_or(0);
+            let id = id.unwrap_or_default();
             if let std::collections::hash_map::Entry::Occupied(_) = self
                 .rule_map
-                .entry((id, proto, Normalized::new(dest.clone())))
+                .entry((id.into(), proto, Normalized::new(dest.clone())))
                 .and_modify(|e| {
                     e.remove(&port_range);
                 })
@@ -267,10 +285,10 @@ where
         &mut self,
         port_range: &PortRange<T>,
         proto: Protocol,
-        id: u128,
+        id: Id,
     ) -> Result<()> {
         for (_, v) in self.rule_map.iter().filter(|((k_id, k_proto, k_ip), _)| {
-            *k_id == id && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
+            *k_id == id.into() && *k_proto == proto && port_range.origin.contains(&k_ip.ip)
         }) {
             let mut v = v.clone();
             v.remove(port_range);
@@ -286,7 +304,7 @@ where
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
         proto: Protocol,
-        id: u128,
+        id: Id,
     ) -> Result<()> {
         for ((k_id, k_proto, k_ip), v) in
             self.rule_map
@@ -298,11 +316,11 @@ where
             v.remove(&port_range);
             if !v.is_empty() {
                 store.insert(
-                    &k_ip.ip.as_key(*k_id, *k_proto as u8),
+                    &k_ip.ip.as_key(k_id.0, *k_proto as u8),
                     to_rule_store(&*v).expect("Should error on check before"),
                 )?;
             } else {
-                store.remove(&k_ip.ip.as_key(*k_id, *k_proto as u8))?;
+                store.remove(&k_ip.ip.as_key(k_id.0, *k_proto as u8))?;
             }
         }
         Ok(())
@@ -312,7 +330,7 @@ where
         &mut self,
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
-        id: u128,
+        id: Id,
         proto: Protocol,
     ) -> Result<()> {
         self.propagate_impl(store, port_range, id, proto, Method::Modify)
@@ -322,7 +340,7 @@ where
         &mut self,
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
-        id: u128,
+        id: Id,
         proto: Protocol,
     ) -> Result<()> {
         self.propagate_impl(store, port_range, id, proto, Method::Check)
@@ -332,7 +350,7 @@ where
         &mut self,
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         port_range: PortRange<T>,
-        id: u128,
+        id: Id,
         proto: Protocol,
         method: Method,
     ) -> Result<()> {
@@ -351,7 +369,7 @@ where
                 Method::Modify => {
                     v.insert(port_range.clone());
                     store.insert(
-                        &k_ip.ip.as_key(*k_id, *k_proto as u8),
+                        &k_ip.ip.as_key(k_id.0, *k_proto as u8),
                         to_rule_store(&*v).expect("Should error on check"),
                     )?;
                 }
@@ -365,7 +383,7 @@ where
         &mut self,
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         cidr: &T,
-        id: u128,
+        id: Id,
         proto: Protocol,
     ) -> Result<()> {
         self.reverse_propagate_impl(store, cidr, id, proto, Method::Modify)
@@ -375,7 +393,7 @@ where
         &mut self,
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         cidr: &T,
-        id: u128,
+        id: Id,
         proto: Protocol,
     ) -> Result<()> {
         self.reverse_propagate_impl(store, cidr, id, proto, Method::Modify)
@@ -385,7 +403,7 @@ where
         &mut self,
         store: &mut impl BpfStore<K = Key<T::KeySize>, V = RuleStore>,
         cidr: &T,
-        id: u128,
+        id: Id,
         proto: Protocol,
         method: Method,
     ) -> Result<()> {
@@ -402,7 +420,7 @@ where
                     port_ranges.extend(overlapping_parents);
 
                     store.insert(
-                        &cidr.as_key(id, proto as u8),
+                        &cidr.as_key(id.0, proto as u8),
                         to_rule_store(&*port_ranges).expect("Should error on check"),
                     )?;
                 }
@@ -411,16 +429,11 @@ where
         Ok(())
     }
 
-    fn get_overlapping_parents(
-        &self,
-        cidr: &T,
-        id: u128,
-        proto: Protocol,
-    ) -> HashSet<PortRange<T>> {
+    fn get_overlapping_parents(&self, cidr: &T, id: Id, proto: Protocol) -> HashSet<PortRange<T>> {
         self.rule_map
             .iter()
             .filter(|((k_id, k_proto, k_ip), _)| {
-                *k_id == id && *k_proto == proto && k_ip.ip.contains(cidr)
+                *k_id == id.into() && *k_proto == proto && k_ip.ip.contains(cidr)
             })
             .flat_map(|(_, v)| v)
             .cloned()

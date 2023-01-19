@@ -126,7 +126,7 @@ impl Firewall {
     /// ```
     #[instrument(level = "trace", skip(self))]
     pub fn add_rule(&mut self, rule: &Rule) -> Result<()> {
-        match &rule {
+        let result = match &rule {
             Rule::V4(r) => self.rule_tracker_v4.add_rule(
                 &mut LpmTrie::try_from(self.bpf.map_mut(RULE_MAP_IPV4).ok_or(MapNotFound)?)?,
                 r,
@@ -135,7 +135,15 @@ impl Firewall {
                 &mut LpmTrie::try_from(self.bpf.map_mut(RULE_MAP_IPV6).ok_or(MapNotFound)?)?,
                 r,
             ),
-        }
+        };
+
+        tracing::trace!(
+            "Rule state:\nipv4:\n\t{:#?}\nipv6:\n\t{:#?}",
+            self.rule_tracker_v4,
+            self.rule_tracker_v6
+        );
+
+        result
     }
 
     /// Removes an existing [Rule] from the firewall.

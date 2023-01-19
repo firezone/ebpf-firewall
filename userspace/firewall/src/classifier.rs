@@ -7,6 +7,7 @@ use crate::{as_octet::AsOctets, bpf_store::BpfStore, Error, Result};
 
 type ID = [u8; 16];
 
+#[derive(Debug)]
 pub struct Classifier<T: AsOctets>
 where
     T::Octets: Pod + Eq + Hash,
