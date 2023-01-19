@@ -1,38 +1,7 @@
 use aya::{maps::lpm_trie::Key, Pod};
 use ipnet::{Ipv4Net, Ipv6Net};
-use std::ops::{BitAnd, Not, Shr};
 
 use crate::as_octet::AsOctets;
-
-pub trait AsNum {
-    type Num: BitAnd<Output = Self::Num>
-        + CheckedShr
-        + Shr<u8>
-        + Not<Output = Self::Num>
-        + Default
-        + PartialEq;
-    fn as_num(&self) -> Self::Num;
-    fn max() -> Self::Num;
-}
-
-pub trait CheckedShr
-where
-    Self: Sized,
-{
-    fn checked_shr(self, rhs: u32) -> Option<Self>;
-}
-
-impl CheckedShr for u32 {
-    fn checked_shr(self, rhs: u32) -> Option<Self> {
-        u32::checked_shr(self, rhs)
-    }
-}
-
-impl CheckedShr for u128 {
-    fn checked_shr(self, rhs: u32) -> Option<Self> {
-        u128::checked_shr(self, rhs)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Normalized<T>
@@ -48,30 +17,6 @@ where
 {
     pub(crate) fn new(ip: T) -> Self {
         Self { ip: ip.normalize() }
-    }
-}
-
-impl AsNum for Ipv4Net {
-    type Num = u32;
-
-    fn as_num(&self) -> Self::Num {
-        u32::from(self.addr())
-    }
-
-    fn max() -> Self::Num {
-        u32::MAX
-    }
-}
-
-impl AsNum for Ipv6Net {
-    type Num = u128;
-
-    fn as_num(&self) -> Self::Num {
-        u128::from(self.addr())
-    }
-
-    fn max() -> Self::Num {
-        u128::MAX
     }
 }
 
@@ -128,7 +73,7 @@ where
     T: AsOctets + Normalize + Prefixed,
     T::Octets: AsRef<[u8]>,
 {
-    let key_id = id.to_be_bytes();
+    let key_id = id.to_le_bytes();
     let key_cidr = ip.normalize().as_octets();
     let mut key_data = [0u8; N];
     let (left_key_data, cidr) = key_data.split_at_mut(17);
@@ -166,6 +111,7 @@ mod test {
 
     use aya::maps::lpm_trie::Key;
     use ipnet::{Ipv4Net, Ipv6Net};
+    use uuid::Uuid;
 
     use crate::{cidr::AsKey, Protocol};
 
@@ -215,6 +161,26 @@ mod test {
             [
                 0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0xfa, 0xfa, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03,
+            ],
+        );
+        assert_eq!(x.data, y.data);
+
+        let actual_len = x.prefix_len;
+        let expected_len = y.prefix_len;
+        assert_eq!(actual_len, expected_len);
+    }
+
+    #[test]
+    fn as_key_works_with_id() {
+        let cidr: Ipv4Net = "1.1.1.1/32".parse().unwrap();
+        let id = Uuid::parse_str("95112de5-62df-4fbc-9688-47681b1fe89d").unwrap();
+
+        let x = cidr.as_key(id.as_u128(), Protocol::Generic as u8);
+        let y = Key::new(
+            168,
+            [
+                0x9d, 0xe8, 0x1f, 0x1b, 0x68, 0x47, 0x88, 0x96, 0xbc, 0x4f, 0xdf, 0x62, 0xe5, 0x2d,
+                0x11, 0x95, 255, 1, 1, 1, 1,
             ],
         );
         assert_eq!(x.data, y.data);

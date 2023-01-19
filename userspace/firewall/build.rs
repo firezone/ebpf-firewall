@@ -1,6 +1,7 @@
 use std::{path::PathBuf, process::ExitStatus};
 
 const EBPF_FEATURES: &[&str] = &["rules", "wireguard"];
+const TOOLCHAIN: &str = "+nightly-2023-01-10";
 
 fn main() {
     println!("cargo:rerun-if-changed=../../ebpf/");
@@ -42,7 +43,7 @@ pub fn build_ebpf(
     // Should we: RUSTFLAGS="-C link-arg=--unroll-loops"?
     // 5.3
     let mut args = vec![
-        "+nightly",
+        TOOLCHAIN,
         "build",
         "--color",
         "always",

@@ -2,11 +2,10 @@
 
 mod test_data;
 
-use aya::Pod;
-
 use crate::{
     as_octet::AsOctets,
-    cidr::{AsKey, AsNum, Normalize},
+    bpf_store::test_store::TestStore,
+    cidr::{AsKey, Normalize},
     rule::RuleImpl,
     Protocol::{Generic, UDP},
     Result,
@@ -17,28 +16,9 @@ use std::collections::HashMap;
 
 use self::test_data::TestRun;
 
-use super::rule_trie::RuleTrie;
-
-impl<K: Pod, V: Pod> RuleTrie<K, V> for () {
-    fn insert(
-        &mut self,
-        _: &aya::maps::lpm_trie::Key<K>,
-        _: V,
-    ) -> core::result::Result<(), aya::maps::MapError> {
-        Ok(())
-    }
-
-    fn remove(
-        &mut self,
-        _: &aya::maps::lpm_trie::Key<K>,
-    ) -> core::result::Result<(), aya::maps::MapError> {
-        Ok(())
-    }
-}
-
 impl<T> crate::rule_tracker::RuleTracker<T>
 where
-    T: AsNum + Debug + AsKey + AsOctets + Normalize,
+    T: Debug + AsKey + AsOctets + Normalize,
     T::Octets: AsRef<[u8]>,
 {
     pub fn new_test() -> Result<Self> {
@@ -59,7 +39,7 @@ fn port_0_match_all_ip_v4() {
     let mut rule_tracker = test_data::prepare_ipv4();
     rule_tracker
         .add_rule(
-            &mut (),
+            &mut TestStore::new(),
             &RuleImpl::new("10.1.1.0/24".parse().unwrap()).with_range(0..=0, Generic),
         )
         .unwrap();
@@ -82,7 +62,7 @@ fn remove_ipv4_rule_works() {
     let mut rule_tracker = test_data::prepare_ipv4();
     rule_tracker
         .remove_rule(
-            &mut (),
+            &mut TestStore::new(),
             &RuleImpl::new("10.1.1.0/24".parse().unwrap()).with_range(200..=800, UDP),
         )
         .unwrap();
@@ -105,7 +85,7 @@ fn port_0_match_all_ip_v6() {
     let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
         .add_rule(
-            &mut (),
+            &mut TestStore::new(),
             &RuleImpl::new("fafa::1:0:0:0/96".parse().unwrap()).with_range(0..=0, Generic),
         )
         .unwrap();
@@ -128,7 +108,7 @@ fn remove_ipv6_rule_works() {
     let mut rule_tracker = test_data::prepare_ipv6();
     rule_tracker
         .remove_rule(
-            &mut (),
+            &mut TestStore::new(),
             &RuleImpl::new("fafa::1:0:0:0/96".parse().unwrap()).with_range(200..=800, UDP),
         )
         .unwrap();
