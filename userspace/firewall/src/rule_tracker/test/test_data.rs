@@ -274,10 +274,11 @@ where
         println!("{self:#?}");
         for ((id, cidr), ports) in self.expect_true.clone() {
             for (proto, port) in ports {
-                let rule_map =
-                    self.rule_tracker
-                        .rule_map
-                        .get(&(id, proto, Normalized::new(cidr.clone())));
+                let rule_map = self.rule_tracker.rule_map.get(&(
+                    id.into(),
+                    proto,
+                    Normalized::new(cidr.clone()),
+                ));
                 assert!(
                     rule_map.is_some(),
                     "rule_map for id {id} cidr {cidr:?} protocol {proto:?} port {port:?} is none"
@@ -292,10 +293,11 @@ where
 
         for ((id, cidr), ports) in self.expect_false.clone() {
             for (proto, port) in ports {
-                let rule_map =
-                    self.rule_tracker
-                        .rule_map
-                        .get(&(id, proto, Normalized::new(cidr.clone())));
+                let rule_map = self.rule_tracker.rule_map.get(&(
+                    id.into(),
+                    proto,
+                    Normalized::new(cidr.clone()),
+                ));
                 if !rule_map.is_none() {
                     let rule_store = to_rule_store(rule_map.unwrap()).unwrap();
                     assert!(
